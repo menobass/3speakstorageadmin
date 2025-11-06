@@ -1,0 +1,84 @@
+#!/usr/bin/env node
+import { Command } from 'commander';
+import { validateConfig } from './config';
+import { logger } from './utils/logger';
+import { cleanupCommand } from './commands/cleanup';
+import { statsCommand } from './commands/stats';
+import { listCommand } from './commands/list';
+import { testS3Command } from './commands/test-s3';
+import { testSpecificVideoCommand } from './commands/test-specific-video';
+import { debugBannedUsersCommand } from './commands/debug-banned';
+
+const program = new Command();
+
+program
+  .name('3speak-admin')
+  .description('3Speak Storage Administration Tool')
+  .version('1.0.0');
+
+program
+  .command('cleanup')
+  .description('Clean up videos based on specified criteria')
+  .option('-b, --banned-users', 'Clean up videos from banned users')
+  .option('-a, --age <days>', 'Clean up videos older than specified days')
+  .option('--max-views <count>', 'Clean up videos with less than specified views')
+  .option('--min-views <count>', 'Clean up videos with more than specified views')
+  .option('-o, --orphaned', 'Clean up orphaned videos (no filename)')
+  .option('-s, --status <statuses>', 'Clean up videos with specific statuses (comma-separated). Use "deleted" for admin-deleted videos.')
+  .option('--stuck-days <days>', 'Clean up videos stuck in processing for X days (default: 30)')
+  .option('--storage-type <type>', 'Target specific storage type: ipfs, s3, unknown')
+  .option('--dry-run', 'Preview changes without executing them')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .option('--batch-size <size>', 'Process videos in batches of specified size')
+  .action(cleanupCommand);
+
+program
+  .command('stats')
+  .description('Show storage statistics')
+  .option('-d, --detailed', 'Show detailed breakdown')
+  .action(statsCommand);
+
+program
+  .command('list')
+  .description('List videos matching criteria')
+  .option('-b, --banned-users', 'List videos from banned users')
+  .option('-a, --age <days>', 'List videos older than specified days')
+  .option('--max-views <count>', 'List videos with less than specified views')
+  .option('--min-views <count>', 'List videos with more than specified views')
+  .option('-o, --orphaned', 'List orphaned videos')
+  .option('-s, --status <statuses>', 'List videos with specific statuses')
+  .option('--stuck-days <days>', 'List videos stuck in processing for X days (default: 30)')
+  .option('--storage-type <type>', 'Filter by storage type: ipfs, s3, unknown')
+  .option('--limit <count>', 'Limit number of results')
+  .action(listCommand);
+
+program
+  .command('test-s3')
+  .description('Test S3 connection and list objects')
+  .action(testS3Command);
+
+program
+  .command('test-video')
+  .description('Test specific video S3 object access')
+  .action(testSpecificVideoCommand);
+
+program
+  .command('debug-banned')
+  .description('Debug banned users and video lookup')
+  .action(debugBannedUsersCommand);
+
+async function main() {
+  try {
+    validateConfig();
+    await program.parseAsync(process.argv);
+  } catch (error) {
+    logger.error('Application error', error);
+    process.exit(1);
+  }
+}
+
+if (require.main === module) {
+  main();
+}
+
+export default program;

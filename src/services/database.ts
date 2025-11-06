@@ -1,0 +1,359 @@
+import { MongoClient, Db, Collection } from 'mongodb';
+import { ContentCreator, Video, CleanupCriteria } from '../types';
+import { config } from '../config';
+import { logger } from '../utils/logger';
+
+export class DatabaseService {
+  private client: MongoClient | null = null;
+  private db: Db | null = null;
+
+  async connect(): Promise<void> {
+    try {
+      this.client = new MongoClient(config.mongodb.uri);
+      await this.client.connect();
+      this.db = this.client.db(config.mongodb.dbName);
+      logger.info('Connected to MongoDB');
+    } catch (error) {
+      logger.error('Failed to connect to MongoDB', error);
+      throw error;
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.client) {
+      await this.client.close();
+      logger.info('Disconnected from MongoDB');
+    }
+  }
+
+  private getContentCreatorsCollection(): Collection<ContentCreator> {
+    if (!this.db) throw new Error('Database not connected');
+    return this.db.collection<ContentCreator>('contentcreators');
+  }
+
+  private getVideosCollection(): Collection<Video> {
+    if (!this.db) throw new Error('Database not connected');
+    return this.db.collection<Video>('videos');
+  }
+
+  async getBannedUsers(): Promise<ContentCreator[]> {
+    const contentCreators = this.getContentCreatorsCollection();
+    return await contentCreators.find({ banned: true }).toArray();
+  }
+
+  async getVideosForCleanup(type: 'banned-users' | 'stuck-uploads' | 'low-engagement' | 'admin-deleted' = 'stuck-uploads', options: {
+    limit?: number;
+    olderThanDays?: number;
+    viewThreshold?: number;
+  } = {}): Promise<any[]> {
+    const videos = this.getVideosCollection();
+    const { limit = 100, olderThanDays = 365, viewThreshold = 10 } = options;
+    
+    let query: any = { 
+      $or: [
+        { filename: { $exists: true, $nin: [null, ''] } },
+        { ipfshash: { $exists: true, $nin: [null, ''] } }
+      ]
+    };
+    
+    // Exclude videos we've already cleaned up
+    query.cleanedUp = { $ne: true };
+    
+    switch (type) {
+      case 'banned-users':
+        const bannedUsers = await this.getBannedUsers();
+        const bannedUsernames = bannedUsers.map(user => user.username);
+        query.owner = { $in: bannedUsernames };
+        break;
+        
+      case 'stuck-uploads':
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+        query.$and = [
+          { status: { $nin: ['published', 'scheduled', 'deleted'] } }, // Exclude admin-deleted
+          { created: { $lt: cutoffDate } }
+        ];
+        break;
+        
+      case 'admin-deleted':
+        // Videos that Eddie marked as deleted but files might still exist
+        query.status = 'deleted';
+        break;
+        
+      case 'low-engagement':
+        query.$and = [
+          { status: 'published' },
+          { 
+            $or: [
+              { views: { $lt: viewThreshold } },
+              { views: { $exists: false } },
+              { views: null }
+            ]
+          }
+        ];
+        break;
+    }
+
+    const result = await videos.find(query)
+      .limit(limit)
+      .sort({ created: 1 }) // Oldest first
+      .toArray();
+
+    logger.info(`Found ${result.length} videos for cleanup (type: ${type})`);
+    return result;
+  }
+
+  async updateVideoStatus(videoId: string, status: 'published' | 'deleted' | 'uploaded' | 'encoding_ipfs' | 'processing' | 'failed' | 'draft'): Promise<void> {
+    const videos = this.getVideosCollection();
+    await videos.updateOne(
+      { _id: videoId },
+      { 
+        $set: { 
+          status,
+          updatedAt: new Date()
+        }
+      }
+    );
+  }
+
+  async markVideoAsCleanedUp(videoId: string, cleanupInfo: {
+    cleanupDate: Date;
+    cleanupReason: string;
+    storageType: 'ipfs' | 's3' | 'unknown';
+    originalStatus: string;
+  }): Promise<void> {
+    const videos = this.getVideosCollection();
+    
+    // First check if this video was already manually deleted by admin
+    const existing = await videos.findOne({ _id: videoId });
+    const wasAlreadyDeleted = existing?.status === 'deleted';
+    
+    await videos.updateOne(
+      { _id: videoId },
+      { 
+        $set: { 
+          // Keep status as 'deleted' if already deleted, otherwise set to deleted
+          status: 'deleted',
+          updatedAt: new Date(),
+          cleanupDate: cleanupInfo.cleanupDate,
+          cleanupReason: cleanupInfo.cleanupReason,
+          cleanupStorageType: cleanupInfo.storageType,
+          originalStatus: cleanupInfo.originalStatus,
+          cleanedUp: true,
+          // Track if this was manually deleted before our cleanup
+          wasManuallyDeleted: wasAlreadyDeleted
+        }
+      }
+    );
+    
+    const deleteType = wasAlreadyDeleted ? 'admin-deleted' : 'stuck-upload';
+    logger.info(`Marked video ${videoId} as cleaned up (${deleteType}): ${cleanupInfo.cleanupReason}`);
+  }
+
+  async getVideoStats(): Promise<any> {
+    const videos = this.getVideosCollection();
+    return await videos.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalViews: { $sum: '$views' },
+          totalSize: { $sum: '$size' }
+        }
+      }
+    ]).toArray();
+  }
+
+  async getStuckVideos(olderThanDays: number = 30): Promise<Video[]> {
+    const videos = this.getVideosCollection();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+    
+    return await videos.find({
+      status: { $in: ['uploaded', 'encoding_ipfs', 'processing'] },
+      created: { $lt: cutoffDate }
+    }).toArray();
+  }
+
+  // Helper method to identify video storage type
+  getVideoStorageType(video: Video): 'ipfs' | 's3' | 'unknown' {
+    if (video.filename?.startsWith('ipfs://')) {
+      return 'ipfs';
+    } else if (video.filename && !video.filename.startsWith('ipfs://')) {
+      return 's3';
+    }
+    return 'unknown';
+  }
+
+  // Helper method to get S3 paths for videos (permlink-based + original files)
+  getS3Paths(video: Video): string[] {
+    const paths: string[] = [];
+    
+    // For newer videos, use permlink-based structure (processed/encoded videos)
+    if (video.permlink) {
+      paths.push(
+        `${video.permlink}/1080p.m3u8`,
+        `${video.permlink}/720p.m3u8`,
+        `${video.permlink}/480p.m3u8`,
+        `${video.permlink}/360p.m3u8`,
+        `${video.permlink}/default.m3u8`,
+        `${video.permlink}/1080p/`, // HLS segments folder
+        `${video.permlink}/720p/`,
+        `${video.permlink}/480p/`,
+        `${video.permlink}/360p/`,
+        `${video.permlink}/thumbnails/`,
+        video.permlink // Base folder
+      );
+    }
+    
+    // Add the processed video filename if it exists and is S3
+    if (video.filename && !video.filename.startsWith('ipfs://')) {
+      paths.push(video.filename);
+    }
+    
+    // CRITICAL: Add the original source video file
+    if (video.originalFilename && !video.originalFilename.startsWith('ipfs://')) {
+      paths.push(video.originalFilename);
+      
+      // Also check for common original video patterns in S3
+      // Some systems might store originals with prefixes
+      const originalBasename = video.originalFilename.split('/').pop();
+      if (originalBasename) {
+        paths.push(`originals/${originalBasename}`);
+        paths.push(`uploads/${originalBasename}`);
+        paths.push(`raw/${originalBasename}`);
+        paths.push(`source/${originalBasename}`);
+      }
+    }
+    
+    // Remove duplicates and empty strings
+    return [...new Set(paths.filter(path => path && path.trim() !== ''))];
+  }
+
+  // Legacy method for backward compatibility
+  getS3Filename(video: Video): string | null {
+    const paths = this.getS3Paths(video);
+    return paths.length > 0 ? paths[0] : null;
+  }
+
+  // Helper method to get IPFS hash from filename
+  getIpfsHash(video: Video): string | null {
+    if (video.filename?.startsWith('ipfs://')) {
+      return video.filename.replace('ipfs://', '');
+    }
+    return null;
+  }
+
+  async getCleanupStats(): Promise<{
+    totalCleaned: number;
+    cleanedByReason: { [reason: string]: number };
+    cleanedByStorageType: { [type: string]: number };
+    recentCleanups: number; // Last 7 days
+  }> {
+    const videos = this.getVideosCollection();
+    
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const [totalResult, byReason, byStorageType, recentResult] = await Promise.all([
+      // Total cleaned
+      videos.countDocuments({ cleanedUp: true }),
+      
+      // By cleanup reason
+      videos.aggregate([
+        { $match: { cleanedUp: true } },
+        { $group: { _id: '$cleanupReason', count: { $sum: 1 } } }
+      ]).toArray(),
+      
+      // By storage type
+      videos.aggregate([
+        { $match: { cleanedUp: true } },
+        { $group: { _id: '$cleanupStorageType', count: { $sum: 1 } } }
+      ]).toArray(),
+      
+      // Recent cleanups
+      videos.countDocuments({ 
+        cleanedUp: true,
+        cleanupDate: { $gte: sevenDaysAgo }
+      })
+    ]);
+
+    const cleanedByReason: { [reason: string]: number } = {};
+    byReason.forEach((item: any) => {
+      cleanedByReason[item._id || 'Unknown'] = item.count;
+    });
+
+    const cleanedByStorageType: { [type: string]: number } = {};
+    byStorageType.forEach((item: any) => {
+      cleanedByStorageType[item._id || 'Unknown'] = item.count;
+    });
+
+    return {
+      totalCleaned: totalResult,
+      cleanedByReason,
+      cleanedByStorageType,
+      recentCleanups: recentResult
+    };
+  }
+
+  // Legacy method for backward compatibility with list and stats commands
+  async getVideosByCriteria(criteria: any, limit: number = 1000): Promise<any[]> {
+    const videos = this.getVideosCollection();
+    
+    let query: any = {};
+    
+    if (criteria.bannedUsers) {
+      const bannedUsers = await this.getBannedUsers();
+      const bannedUsernames = bannedUsers.map(user => user.username);
+      query.owner = { $in: bannedUsernames };
+    }
+    
+    if (criteria.ageThresholdDays) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - criteria.ageThresholdDays);
+      query.created = { $lt: cutoffDate };
+    }
+    
+    if (criteria.maxViews !== undefined) {
+      query.$or = [
+        { views: { $lt: criteria.maxViews } },
+        { views: { $exists: false } },
+        { views: null }
+      ];
+    }
+    
+    if (criteria.minViews !== undefined) {
+      query.views = { $gte: criteria.minViews };
+    }
+    
+    if (criteria.status && criteria.status.length > 0) {
+      query.status = { $in: criteria.status };
+    }
+    
+    if (criteria.orphaned) {
+      query.$and = [
+        { $or: [
+          { filename: { $exists: false } },
+          { filename: null },
+          { filename: '' }
+        ]},
+        { $or: [
+          { ipfshash: { $exists: false } },
+          { ipfshash: null },
+          { ipfshash: '' }
+        ]}
+      ];
+    }
+    
+    // Apply limit and timeout to prevent hanging
+    logger.info(`Querying videos with criteria, limit: ${limit}`);
+    const result = await videos.find(query)
+      .limit(limit)
+      .sort({ created: -1 }) // Newest first for better performance
+      .maxTimeMS(30000) // 30 second timeout
+      .toArray();
+    
+    logger.info(`Found ${result.length} videos matching criteria`);
+    return result;
+  }
+}
