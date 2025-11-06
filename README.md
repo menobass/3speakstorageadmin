@@ -67,7 +67,7 @@ REQUIRE_CONFIRMATION=true
 MAX_BATCH_SIZE=100
 ```
 
-## 🎯 Eddie-Friendly Scripts (Recommended)
+## 🎯 Friendly Scripts (Recommended)
 
 **For non-technical administrators:** Use the interactive scripts in the `/scripts` folder.
 
@@ -90,7 +90,7 @@ These scripts:
 
 ### 🚀 Quick Start
 
-### For Administrators (Eddie-Friendly Scripts)
+### For Administrators 
 ```bash
 # 1. First time setup
 npm install

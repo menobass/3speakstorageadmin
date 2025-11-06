@@ -1,6 +1,6 @@
 # 3Speak Storage Admin Scripts
 
-**🎯 Eddie-Friendly Storage Management Scripts**
+**🎯 Friendly Storage Management Scripts**
 
 These scripts make storage cleanup super simple and safe. No need to remember complex commands!
 
@@ -103,7 +103,7 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 
 ## 📊 Recommended Usage Order
 
-**For Eddie (First Time Setup - Recommended Order):**
+**First Time Setup - Recommended Order:**
 
 1. **Get familiar:** `./scripts/status-check.sh`
 2. **Biggest safe wins:** `./scripts/free-deleted-videos.sh` (S3 cleanup)
