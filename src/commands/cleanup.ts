@@ -4,6 +4,7 @@ import { S3Service } from '../services/s3';
 import { CleanupCriteria, Video } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config';
+import { ProgressBar, ProgressSpinner } from '../utils/progress';
 
 interface CleanupOptions {
   bannedUsers?: boolean;
@@ -172,14 +173,20 @@ export async function cleanupCommand(options: CleanupOptions): Promise<void> {
       errors: [] as string[]
     };
 
+    // Create progress bar
+    const progressBar = new ProgressBar(filteredVideos.length, 'Cleaning videos');
+    
     // Process videos in batches
     for (let i = 0; i < filteredVideos.length; i += batchSize) {
       const batch = filteredVideos.slice(i, i + batchSize);
-      logger.info(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(filteredVideos.length / batchSize)}`);
+      const batchNum = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(filteredVideos.length / batchSize);
 
       for (const video of batch) {
         try {
           const storageType = db.getVideoStorageType(video);
+          const videoTitle = video.title || video.permlink || video._id;
+          progressBar.update(results.processed, `${videoTitle.substring(0, 30)}...`);
           
           // Clean up IPFS
           if (storageType === 'ipfs') {
@@ -218,9 +225,6 @@ export async function cleanupCommand(options: CleanupOptions): Promise<void> {
             
             if (deletedCount > 0) {
               results.s3Deleted += deletedCount;
-              logger.info(`Deleted ${deletedCount} S3 objects for video ${video._id} (${video.permlink || 'no-permlink'})`);
-            } else {
-              logger.info(`No S3 objects found for video ${video._id} (${video.permlink || 'no-permlink'}) - may already be cleaned`);
             }
           }
 
@@ -244,19 +248,26 @@ export async function cleanupCommand(options: CleanupOptions): Promise<void> {
           
           // Add to total storage freed
           results.totalStorageFreed += video.size || 0;
+          
+          // Update progress bar
+          progressBar.increment();
 
         } catch (error: any) {
           logger.error(`Error processing video ${video._id}`, error);
           results.errors.push(`Error processing ${video._id}: ${error.message}`);
+          progressBar.increment();
         }
       }
 
       // Pause between batches
       if (i + batchSize < filteredVideos.length) {
-        logger.info('Pausing between batches...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+    
+    // Ensure progress bar completes
+    progressBar.complete('Cleanup finished');
+    console.log(''); // New line after progress bar
 
     // Final results
     const storageFreedGB = (results.totalStorageFreed / (1024 * 1024 * 1024)).toFixed(2);
