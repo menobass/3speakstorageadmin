@@ -121,6 +121,7 @@ export class DatabaseService {
     cleanupReason: string;
     storageType: 'ipfs' | 's3' | 'unknown';
     originalStatus: string;
+    optimizationType?: string;
   }): Promise<void> {
     const videos = this.getVideosCollection();
     

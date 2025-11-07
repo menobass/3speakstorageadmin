@@ -8,6 +8,7 @@ import { listCommand } from './commands/list';
 import { testS3Command } from './commands/test-s3';
 import { testSpecificVideoCommand } from './commands/test-specific-video';
 import { debugBannedUsersCommand } from './commands/debug-banned';
+import { storageDietCommand } from './commands/storage-diet';
 
 const program = new Command();
 
@@ -66,6 +67,16 @@ program
   .command('debug-banned')
   .description('Debug banned users and video lookup')
   .action(debugBannedUsersCommand);
+
+program
+  .command('storage-diet')
+  .description('Optimize storage by keeping only 480p resolution for low-engagement videos')
+  .option('--older-than-months <months>', 'Target videos older than specified months (default: 6)')
+  .option('--view-threshold <count>', 'Target videos with less than specified views (default: 500)')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 25)')
+  .option('--dry-run', 'Preview changes without executing them (default: true)')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(storageDietCommand);
 
 async function main() {
   try {

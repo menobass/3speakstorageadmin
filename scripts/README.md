@@ -75,15 +75,16 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 ./scripts/clean-stuck-uploads.sh
 ```
 
-### 📉 `clean-low-engagement.sh` - Remove Low Engagement Videos ⚠️
-**What it does:** Removes old published videos with very low view counts
-**Safety:** LOW - This removes published content users can watch!
-**When to use:** Only when storage is critically low
-**Caution:** Start with very conservative settings
+7. **`clean-low-engagement.sh`**
+   - Removes very old videos with minimal engagement
+   - Targets content unlikely to be missed
+   - **Risk Level:** Medium - Reviews criteria before proceeding
 
-```bash
-./scripts/clean-low-engagement.sh
-```
+8. **`storage-diet.sh`** 🆕
+   - **MEGA OPTIMIZER:** Keep only 480p resolution for old, low-engagement videos
+   - Deletes 1080p, 720p, 360p, and source files - keeps videos watchable
+   - **Storage Impact:** 60-80% reduction per video
+   - **Risk Level:** LOW - Videos remain accessible in 480p quality
 
 ## 🛡️ Safety Features
 
