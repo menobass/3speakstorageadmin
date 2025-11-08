@@ -86,6 +86,15 @@ These scripts make storage cleanup super simple and safe. No need to remember co
    - **Storage Impact:** 60-80% reduction per video
    - **Risk Level:** LOW - Videos remain accessible in 480p quality
 
+### ☢️ `nuke-account.sh` - Nuclear Account Deletion (EXTREME)
+**What it does:** Erases every trace of a specific account (S3 files, IPFS hashes, database records)
+**Safety:** ⚠️ EXTREME - irreversible, use only with absolute certainty
+**When to use:** Legal takedowns, DMCA requests, or malicious accounts that must be fully purged
+
+```bash
+./scripts/nuke-account.sh
+```
+
 ## 🛡️ Safety Features
 
 ✅ **Every script includes:**
@@ -113,6 +122,7 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 5. **Monthly maintenance:** `./scripts/clean-stuck-uploads.sh`
 6. **As needed:** `./scripts/remove-banned-content.sh`
 7. **Emergency only:** `./scripts/clean-low-engagement.sh` (removes published content!)
+8. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
 
 **For Regular Maintenance:**
 
@@ -130,6 +140,9 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 
 # Emergency only: Remove low-engagement content
 ./scripts/clean-low-engagement.sh
+
+# Nuclear option: Completely remove a hostile account
+./scripts/nuke-account.sh
 ```
 
 ## 🎛️ Script Options Explained

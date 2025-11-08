@@ -103,6 +103,38 @@ export class DatabaseService {
     return result;
   }
 
+  async getVideosByOwner(owner: string, options: {
+    includeCleaned?: boolean;
+    limit?: number;
+    statuses?: string[];
+  } = {}): Promise<Video[]> {
+    const videos = this.getVideosCollection();
+    const { includeCleaned = false, limit = 0, statuses } = options;
+
+    const query: any = {
+      owner: { $regex: `^${owner}$`, $options: 'i' }
+    };
+
+    if (!includeCleaned) {
+      query.cleanedUp = { $ne: true };
+    }
+
+    if (statuses && statuses.length > 0) {
+      query.status = { $in: statuses };
+    }
+
+    logger.info(`Looking up videos for owner ${owner} (includeCleaned=${includeCleaned}, limit=${limit || 'none'})`);
+
+    const cursor = videos.find(query).sort({ created: 1 });
+    if (limit && limit > 0) {
+      cursor.limit(limit);
+    }
+
+    const result = await cursor.toArray();
+    logger.info(`Found ${result.length} videos for owner ${owner}`);
+    return result;
+  }
+
   async updateVideoStatus(videoId: string, status: 'published' | 'deleted' | 'uploaded' | 'encoding_ipfs' | 'processing' | 'failed' | 'draft'): Promise<void> {
     const videos = this.getVideosCollection();
     await videos.updateOne(

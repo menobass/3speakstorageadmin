@@ -46,6 +46,12 @@ export interface Video {
   thumbnail?: string;
   job_id?: string;
   local_filename?: string;
+  cleanedUp?: boolean;
+  cleanupReason?: string;
+  cleanupStorageType?: 'ipfs' | 's3' | 'unknown';
+  cleanupDate?: Date;
+  originalStatus?: string;
+  wasManuallyDeleted?: boolean;
 }
 
 export interface CleanupCriteria {
