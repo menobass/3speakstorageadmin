@@ -118,6 +118,20 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 ./scripts/slim-user.sh
 ```
 
+### ✂️ `trim-fat.sh` - Account Fat Trimming (Both Storage Types - FLEXIBLE) 🆕
+**What it does:** Removes old or low-engagement content from specific accounts with flexible criteria
+**Storage Type:** ✅ **Both S3 and IPFS** - intelligently handles different storage types appropriately
+**Operations:** S3 files deleted, IPFS hashes unpinned (content becomes inaccessible)
+**Safety:** Medium-High (account-specific with age/engagement filters)
+**Features:** Flexible age thresholds, engagement filtering, combined criteria, dry-run preview
+**Space saved:** Varies - targets underperforming content (typically significant savings)
+**Flexibility:** Age-based (1-10 years), engagement-based (50-5000 views), or combined criteria
+**When to use:** Clean up specific accounts with old/unwanted content, reduce storage costs with precision
+
+```bash
+./scripts/trim-fat.sh
+```
+
 ### ☢️ `nuke-account.sh` - Nuclear Account Deletion (Both Storage Types - EXTREME)
 **What it does:** Erases every trace of a specific account from all storage systems
 **Storage Type:** ✅ **Both S3 and IPFS** - intelligently detects and applies appropriate destruction method
@@ -188,7 +202,8 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 8. **S3 optimization:** `./scripts/s3-diet.sh` (optimize rare S3 videos)
 9. **IPFS optimization:** `./scripts/ipfs-diet.sh` (THE BIG SAVINGS - unpins old IPFS content)
 10. **User optimization:** `./scripts/slim-user.sh` (target specific heavy users)
-11. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
+11. **Account fat trimming:** `./scripts/trim-fat.sh` (flexible account cleanup with age/engagement criteria)
+12. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
 
 **For Regular Maintenance:**
 
@@ -215,6 +230,9 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 
 # 🎯 User-specific optimization: Target heavy S3 users (cost savings calculations)
 ./scripts/slim-user.sh
+
+# ✂️ Account fat trimming: Flexible account cleanup (age + engagement criteria)
+./scripts/trim-fat.sh
 
 # ☢️ Nuclear option: Completely remove account (both S3 and IPFS)
 ./scripts/nuke-account.sh

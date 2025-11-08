@@ -17,6 +17,9 @@ npm run dev -- list --stuck-days 90 --limit 10
 npm run dev -- cleanup --[criteria] --dry-run      # 1. Preview
 npm run dev -- cleanup --[criteria] --batch-size 5 # 2. Small test  
 npm run dev -- cleanup --[criteria] --batch-size 50 # 3. Full cleanup
+
+# ACCOUNT FAT TRIMMING
+npm run dev -- trim-fat --username myuser --dry-run # Preview account cleanup
 ```
 
 **🚨 NEVER skip `--dry-run` for cleanup operations!**
@@ -257,6 +260,46 @@ npm run dev -- cleanup --banned-users --batch-size 25
 # Complex criteria
 npm run dev -- cleanup --age 1095 --max-views 5 --status "encoding_failed" --dry-run
 ```
+
+### `trim-fat` - Account-Specific Cleanup ✂️
+⚠️ **DESTRUCTIVE OPERATION** - Removes old/low-engagement content from specific accounts.
+
+```bash
+npm run dev -- trim-fat [options]
+```
+
+**Account Options:**
+- `-u, --username <username>` - **REQUIRED** - Target account to trim fat from
+
+**Filtering Options:**
+- `--older-than-months <months>` - Only videos older than X months (default: 24)
+- `--view-threshold <count>` - Only videos with fewer than X views (default: 100)
+- `--batch-size <size>` - Process X videos at a time (default: 25)
+
+**Safety Options:**
+- `--dry-run` - **REQUIRED FIRST** - Preview without executing
+- `--no-confirm` - Skip confirmation prompts (use with caution!)
+
+**Examples:**
+```bash
+# ALWAYS start with dry-run to preview
+npm run dev -- trim-fat --username pressfortruth --dry-run
+
+# Trim 2+ year old content with <50 views
+npm run dev -- trim-fat --username myuser --older-than-months 24 --view-threshold 50
+
+# Custom criteria - 3+ years and <250 views
+npm run dev -- trim-fat --username creator123 --older-than-months 36 --view-threshold 250 --dry-run
+
+# Execute fat trimming (after dry-run preview)
+npm run dev -- trim-fat --username myuser --older-than-months 24 --view-threshold 100
+```
+
+**How it works:**
+- **S3 videos**: Files permanently deleted from Wasabi storage
+- **IPFS videos**: Hashes unpinned (content becomes inaccessible)
+- **Mixed accounts**: Intelligently handles both storage types appropriately
+- **Safe targeting**: Only affects specified account's old/low-engagement content
 
 ## 🚨 Production Safety Workflow
 

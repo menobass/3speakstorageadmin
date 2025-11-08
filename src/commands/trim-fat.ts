@@ -174,10 +174,12 @@ export async function trimFatCommand(options: TrimFatOptions): Promise<void> {
       return;
     }
 
-    // Real trimming mode
+    // Real trimming mode - check for explicit confirmation
     if (config.safety.requireConfirmation && options.confirm !== false) {
-      logger.info('Trim fat requires explicit confirmation');
-      logger.info('Use --no-confirm to skip confirmation (dangerous!)');
+      logger.info('🚨 Trim fat requires explicit confirmation to proceed');
+      logger.info('💡 Use --no-confirm to skip confirmation and execute fat trimming');
+      logger.info('⚠️  Running without --no-confirm will NOT perform storage cleanup!');
+      logger.info('📊 Found videos that would be processed, but exiting due to safety confirmation');
       return;
     }
 
