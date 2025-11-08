@@ -12,6 +12,7 @@ import { s3DietCommand } from './commands/s3-diet';
 import { ipfsDietCommand } from './commands/ipfs-diet';
 import { nukeAccountCommand } from './commands/nuke-account';
 import { slimUserCommand } from './commands/slim-user';
+import { trimFatCommand } from './commands/trim-fat';
 
 const program = new Command();
 
@@ -113,6 +114,18 @@ program
   .option('--dry-run', 'Preview storage savings without executing optimization')
   .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
   .action(slimUserCommand);
+
+program
+  .command('trim-fat')
+  .description('Trim fat from a specific account - remove old/low-engagement content')
+  .requiredOption('-u, --username <username>', 'Account username to trim fat from')
+  .option('--older-than-months <months>', 'Target videos older than specified months (0=any age)')
+  .option('--view-threshold <views>', 'Target videos with less than specified views (999999=no limit)')
+  .option('--include-cleaned', 'Include videos already marked as cleaned')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 25)')
+  .option('--dry-run', 'Preview fat trimming without executing removal')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(trimFatCommand);
 
 async function main() {
   try {

@@ -414,6 +414,32 @@ export class DatabaseService {
       const bannedUsernames = bannedUsers.map(user => user.username);
       query.owner = { $in: bannedUsernames };
     }
+
+    // Account-specific queries (for trim-fat command)
+    if (criteria.type === 'account-specific' && criteria.username) {
+      query.owner = criteria.username;
+      
+      // Apply age filter if specified
+      if (criteria.olderThanDays && criteria.olderThanDays > 0) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - criteria.olderThanDays);
+        query.created = { $lt: cutoffDate };
+      }
+      
+      // Apply view threshold filter if specified
+      if (criteria.viewThreshold && criteria.viewThreshold < 999999) {
+        query.$or = [
+          { views: { $lt: criteria.viewThreshold } },
+          { views: { $exists: false } },
+          { views: null }
+        ];
+      }
+      
+      // Exclude already cleaned videos unless requested
+      if (criteria.excludeCleaned) {
+        query.cleanupMetadata = { $exists: false };
+      }
+    }
     
     if (criteria.ageThresholdDays) {
       const cutoffDate = new Date();
