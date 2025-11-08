@@ -9,6 +9,7 @@ import { testS3Command } from './commands/test-s3';
 import { testSpecificVideoCommand } from './commands/test-specific-video';
 import { debugBannedUsersCommand } from './commands/debug-banned';
 import { storageDietCommand } from './commands/storage-diet';
+import { nukeAccountCommand } from './commands/nuke-account';
 
 const program = new Command();
 
@@ -77,6 +78,18 @@ program
   .option('--dry-run', 'Preview changes without executing them (default: true)')
   .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
   .action(storageDietCommand);
+
+program
+  .command('nuke-account')
+  .description('Permanently delete all videos and storage for a specific account')
+  .requiredOption('-u, --username <username>', 'Account username to nuke')
+  .option('--include-cleaned', 'Include videos already marked as cleaned')
+  .option('--status <statuses>', 'Only include videos with these statuses (comma-separated)')
+  .option('--limit <count>', 'Limit the number of videos processed (default: all)')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 25, max: 500)')
+  .option('--dry-run', 'Preview the destructive impact without executing it')
+  .option('--no-confirm', 'Skip confirmation prompts (use with extreme caution)')
+  .action(nukeAccountCommand);
 
 async function main() {
   try {
