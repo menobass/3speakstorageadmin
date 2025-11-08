@@ -4,7 +4,7 @@ import { IpfsService } from '../services/ipfs';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 
-interface StorageDietOptions {
+interface S3DietOptions {
   olderThanMonths?: string;
   viewThreshold?: string;
   batchSize?: string;
@@ -12,7 +12,7 @@ interface StorageDietOptions {
   confirm?: boolean;
 }
 
-export async function storageDietCommand(options: StorageDietOptions): Promise<void> {
+export async function s3DietCommand(options: S3DietOptions): Promise<void> {
   const db = new DatabaseService();
   const s3Service = new S3Service();
   const isDryRun = options.dryRun !== false; // Default to dry run for safety
@@ -24,8 +24,8 @@ export async function storageDietCommand(options: StorageDietOptions): Promise<v
     const viewThreshold = options.viewThreshold ? parseInt(options.viewThreshold, 10) : 500;
     const olderThanDays = olderThanMonths * 30;
 
-    logger.info(`=== STORAGE DIET: Keep Only 480p ===`);
-    logger.info(`Target: Videos older than ${olderThanMonths} months with <${viewThreshold} views`);
+    logger.info(`=== S3 DIET: Keep Only 480p (S3 Videos Only) ===`);
+    logger.info(`Target: S3 videos older than ${olderThanMonths} months with <${viewThreshold} views`);
     logger.info(`Action: Delete 1080p, 720p, 360p, source files - Keep only 480p`);
     
     if (isDryRun) {
@@ -44,11 +44,12 @@ export async function storageDietCommand(options: StorageDietOptions): Promise<v
     });
 
     if (videos.length === 0) {
-      logger.info('No videos found matching criteria for storage diet');
+      logger.info('No S3 videos found matching criteria for S3 diet');
+      logger.info('💡 Reminder: Platform stopped using S3 4 years ago - most old videos are IPFS-only');
       return;
     }
 
-    logger.info(`Found ${videos.length} videos for storage diet optimization`);
+    logger.info(`Found ${videos.length} S3 videos for diet optimization`);
 
     if (isDryRun) {
       logger.info('=== DRY RUN ANALYSIS ===');
@@ -99,28 +100,28 @@ export async function storageDietCommand(options: StorageDietOptions): Promise<v
       const savingsGB = (analysis.estimatedSavings / (1024 * 1024 * 1024)).toFixed(2);
       const finalSizeGB = ((analysis.totalCurrentSize - analysis.estimatedSavings) / (1024 * 1024 * 1024)).toFixed(2);
       
-      logger.info(`=== STORAGE DIET PREVIEW ===`);
-      logger.info(`Videos to optimize: ${analysis.videosToOptimize}`);
+      logger.info(`=== S3 DIET PREVIEW ===`);
+      logger.info(`S3 videos to optimize: ${analysis.videosToOptimize}`);
       logger.info(`Files to delete: ${analysis.filesToDelete.length}`);
       logger.info(`Folders to delete: ${analysis.prefixesToDelete.length}`);
       logger.info(`Current total size: ${currentSizeGB} GB`);
-      logger.info(`💾 ESTIMATED SAVINGS: ${savingsGB} GB (~70% reduction)`);
-      logger.info(`Final size after diet: ${finalSizeGB} GB`);
-      logger.info(`Use --no-dry-run to execute the storage diet`);
+      logger.info(`💾 ESTIMATED S3 SAVINGS: ${savingsGB} GB (~70% reduction)`);
+      logger.info(`Final size after S3 diet: ${finalSizeGB} GB`);
+      logger.info(`Use --no-dry-run to execute the S3 diet`);
       
       return;
     }
 
     // Real optimization mode
     if (config.safety.requireConfirmation && options.confirm !== false) {
-      logger.info('Storage diet requires explicit confirmation');
+      logger.info('S3 diet requires explicit confirmation');
       logger.info('Use --no-confirm to skip confirmation (dangerous!)');
       return;
     }
 
-    // Perform actual storage diet
+    // Perform actual S3 diet
     const batchSize = options.batchSize ? parseInt(options.batchSize, 10) : 25;
-    logger.info(`Starting storage diet in batches of ${batchSize}`);
+    logger.info(`Starting S3 diet in batches of ${batchSize}`);
 
     const results = {
       processed: 0,
@@ -187,10 +188,10 @@ export async function storageDietCommand(options: StorageDietOptions): Promise<v
             // Mark video as optimized
             await db.markVideoAsCleanedUp(video._id, {
               cleanupDate: new Date(),
-              cleanupReason: `Storage diet: Optimized to 480p only (older than ${olderThanMonths} months, <${viewThreshold} views)`,
+              cleanupReason: `S3 diet: Optimized to 480p only (older than ${olderThanMonths} months, <${viewThreshold} views)`,
               storageType: 's3',
               originalStatus: video.status,
-              optimizationType: 'storage-diet-480p'
+              optimizationType: 's3-diet-480p'
             });
             
           } else {
@@ -216,12 +217,12 @@ export async function storageDietCommand(options: StorageDietOptions): Promise<v
     const storageSavedGB = (results.totalStorageSaved / (1024 * 1024 * 1024)).toFixed(2);
     const storageSavedTB = (results.totalStorageSaved / (1024 * 1024 * 1024 * 1024)).toFixed(3);
     
-    logger.info('=== STORAGE DIET COMPLETED ===');
-    logger.info(`Videos optimized: ${results.processed}`);
-    logger.info(`Files deleted: ${results.filesDeleted}`);
-    logger.info(`Folders deleted: ${results.foldersDeleted}`);
-    logger.info(`🍎 💾 STORAGE SAVED: ${storageSavedGB} GB (${storageSavedTB} TB)`);
-    logger.info(`✅ All videos remain watchable in 480p quality`);
+    logger.info('=== S3 DIET COMPLETED ===');
+    logger.info(`S3 videos optimized: ${results.processed}`);
+    logger.info(`S3 files deleted: ${results.filesDeleted}`);
+    logger.info(`S3 folders deleted: ${results.foldersDeleted}`);
+    logger.info(`🍎 💾 S3 STORAGE SAVED: ${storageSavedGB} GB (${storageSavedTB} TB)`);
+    logger.info(`✅ All S3 videos remain watchable in 480p quality`);
     logger.info(`Errors: ${results.errors.length}`);
     
     if (results.errors.length > 0) {
@@ -230,7 +231,7 @@ export async function storageDietCommand(options: StorageDietOptions): Promise<v
     }
     
   } catch (error) {
-    logger.error('Storage diet command failed', error);
+    logger.error('S3 diet command failed', error);
     throw error;
   } finally {
     await db.disconnect();

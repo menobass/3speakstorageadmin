@@ -8,8 +8,10 @@ import { listCommand } from './commands/list';
 import { testS3Command } from './commands/test-s3';
 import { testSpecificVideoCommand } from './commands/test-specific-video';
 import { debugBannedUsersCommand } from './commands/debug-banned';
-import { storageDietCommand } from './commands/storage-diet';
+import { s3DietCommand } from './commands/s3-diet';
+import { ipfsDietCommand } from './commands/ipfs-diet';
 import { nukeAccountCommand } from './commands/nuke-account';
+import { slimUserCommand } from './commands/slim-user';
 
 const program = new Command();
 
@@ -70,14 +72,24 @@ program
   .action(debugBannedUsersCommand);
 
 program
-  .command('storage-diet')
-  .description('Optimize storage by keeping only 480p resolution for low-engagement videos')
-  .option('--older-than-months <months>', 'Target videos older than specified months (default: 6)')
-  .option('--view-threshold <count>', 'Target videos with less than specified views (default: 500)')
-  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 25)')
+  .command('s3-diet')
+  .description('Optimize S3 storage by keeping only 480p resolution for low-engagement S3 videos')
+  .option('--older-than-months <months>', 'Target S3 videos older than specified months (default: 6)')
+  .option('--view-threshold <count>', 'Target S3 videos with less than specified views (default: 500)')
+  .option('--batch-size <size>', 'Process S3 videos in batches of specified size (default: 25)')
   .option('--dry-run', 'Preview changes without executing them (default: true)')
   .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
-  .action(storageDietCommand);
+  .action(s3DietCommand);
+
+program
+  .command('ipfs-diet')
+  .description('Free IPFS storage by unpinning low-engagement IPFS videos (makes videos inaccessible)')
+  .option('--older-than-months <months>', 'Target IPFS videos older than specified months (default: 6)')
+  .option('--view-threshold <count>', 'Target IPFS videos with less than specified views (default: 500)')
+  .option('--batch-size <size>', 'Process IPFS videos in batches of specified size (default: 25)')
+  .option('--dry-run', 'Preview changes without executing them (default: true)')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(ipfsDietCommand);
 
 program
   .command('nuke-account')
@@ -90,6 +102,17 @@ program
   .option('--dry-run', 'Preview the destructive impact without executing it')
   .option('--no-confirm', 'Skip confirmation prompts (use with extreme caution)')
   .action(nukeAccountCommand);
+
+program
+  .command('slim-user')
+  .description('Storage diet for a specific user - keep only 480p for old videos')
+  .requiredOption('-u, --username <username>', 'Account username to optimize')
+  .option('--older-than-months <months>', 'Target videos older than specified months (default: 6)')
+  .option('--include-cleaned', 'Include videos already marked as optimized')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 25, max: 200)')
+  .option('--dry-run', 'Preview storage savings without executing optimization')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(slimUserCommand);
 
 async function main() {
   try {

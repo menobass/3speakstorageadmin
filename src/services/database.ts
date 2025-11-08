@@ -212,10 +212,32 @@ export class DatabaseService {
   getVideoStorageType(video: Video): 'ipfs' | 's3' | 'unknown' {
     if (video.filename?.startsWith('ipfs://')) {
       return 'ipfs';
-    } else if (video.filename && !video.filename.startsWith('ipfs://')) {
+    } else if (video.filename && this.isRealS3Filename(video.filename)) {
       return 's3';
     }
     return 'unknown';
+  }
+
+  // Helper method to determine if a filename represents a real S3 file
+  private isRealS3Filename(filename: string): boolean {
+    // Exclude common non-S3 patterns
+    if (!filename || 
+        filename === 'null' || 
+        filename === 'undefined' || 
+        filename.startsWith('ipfs://')) {
+      return false;
+    }
+
+    // Real S3 filenames should have file extensions or be proper paths
+    // Examples: "video.mp4", "uploads/abc123/video.mp4", "processed/def456.m3u8"
+    const hasFileExtension = /\.[a-zA-Z0-9]{2,5}$/.test(filename);
+    const hasSlashPath = filename.includes('/');
+    
+    // If it's just a 32-character hex string (like upload session ID), it's probably not S3
+    const isJustHash = /^[a-f0-9]{32}$/.test(filename);
+    
+    // Real S3 files should have extension or path, but not be just a hash
+    return (hasFileExtension || hasSlashPath) && !isJustHash;
   }
 
   // Helper method to get S3 paths for videos (permlink-based + original files)
@@ -386,7 +408,50 @@ export class DatabaseService {
         ]}
       ];
     }
-    
+
+    // Filter by storage type
+    if (criteria.storageType) {
+      switch (criteria.storageType) {
+        case 'ipfs':
+          query.filename = { $regex: '^ipfs://' };
+          break;
+        case 's3':
+          // Real S3 files: have filename but not ipfs://, and match S3 patterns
+          query.$and = [
+            ...(query.$and || []),
+            { 
+              filename: { 
+                $exists: true, 
+                $nin: [null, '', 'null', 'undefined'],
+                $not: { $regex: '^ipfs://' }
+              }
+            },
+            // Must have file extension OR path structure (real S3 files)
+            { $or: [
+              { filename: { $regex: '\\.[a-zA-Z0-9]{2,5}$' } }, // Has file extension
+              { filename: { $regex: '/' } } // Has path structure
+            ]},
+            // Exclude simple hash patterns (upload session IDs)
+            { filename: { $not: { $regex: '^[a-f0-9]{32}$' } } }
+          ];
+          break;
+        case 'unknown':
+          query.$or = [
+            { filename: { $exists: false } },
+            { filename: null },
+            { filename: '' },
+            { filename: 'null' },
+            { filename: 'undefined' },
+            // Hash-like patterns that aren't real S3 files
+            { $and: [
+              { filename: { $not: { $regex: '^ipfs://' } } },
+              { filename: { $regex: '^[a-f0-9]{32}$' } }
+            ]}
+          ];
+          break;
+      }
+    }
+
     // Apply limit and timeout to prevent hanging
     logger.info(`Querying videos with criteria, limit: ${limit}`);
     const result = await videos.find(query)
@@ -394,8 +459,23 @@ export class DatabaseService {
       .sort({ created: -1 }) // Newest first for better performance
       .maxTimeMS(30000) // 30 second timeout
       .toArray();
-    
+
     logger.info(`Found ${result.length} videos matching criteria`);
+    
+    // If storage type filtering was requested, validate results client-side too
+    if (criteria.storageType && result.length > 0) {
+      const filteredResults = result.filter(video => {
+        const detectedType = this.getVideoStorageType(video);
+        return detectedType === criteria.storageType;
+      });
+      
+      if (filteredResults.length !== result.length) {
+        logger.info(`Storage type filter: ${result.length} → ${filteredResults.length} videos (removed ${result.length - filteredResults.length} misclassified)`);
+      }
+      
+      return filteredResults;
+    }
+
     return result;
   }
 }

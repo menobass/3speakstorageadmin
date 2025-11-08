@@ -1,19 +1,20 @@
 #!/bin/bash
 
-# 3Speak Storage Admin - Storage Diet (Keep Only 480p)
-# This script optimizes storage by keeping only 480p resolution for low-engagement videos
+# 3Speak Storage Admin - S3 Diet (Keep Only 480p for S3 Videos)
+# This script optimizes S3 storage by keeping only 480p resolution for low-engagement S3 videos
 
 echo "=============================================="
-echo "  3Speak Storage Admin - Storage Diet 🍎"
+echo "  3Speak Storage Admin - S3 Diet 🪣"
 echo "=============================================="
 echo ""
-echo "This script performs MEGA storage optimization by"
-echo "keeping only 480p resolution for old, low-engagement videos."
+echo "This script optimizes S3 storage by keeping only 480p"
+echo "resolution for old, low-engagement S3 videos."
 echo ""
-echo "⚡ STORAGE IMPACT: Can save 60-80% storage per video!"
+echo "⚡ STORAGE IMPACT: Can save 60-80% S3 storage per video!"
 echo "📺 USER IMPACT: Videos remain watchable in 480p quality"
 echo ""
-echo "🎯 Target: Videos older than 6 months with <500 views"
+echo "🎯 Target: S3 videos only (newer uploads)"
+echo "💡 Note: Platform stopped using S3 4 years ago - most old videos are IPFS"
 echo ""
 
 # Check if we're in the right directory
@@ -129,28 +130,30 @@ while true; do
 done
 
 echo ""
-echo "📝 Optimization Summary:"
-echo "   Target: Videos older than $AGE_MONTHS months with <$VIEW_THRESHOLD views"
+echo "📝 S3 Optimization Summary:"
+echo "   Target: S3 videos older than $AGE_MONTHS months with <$VIEW_THRESHOLD views"
 echo "   Action: Keep only 480p resolution (delete 1080p, 720p, 360p, source files)"
 echo "   Batch Size: $BATCH_SIZE videos per batch"
-echo "   Safety Level: HIGH (videos remain playable in 480p)"
+echo "   Safety Level: HIGH (S3 videos remain playable in 480p)"
+echo "   Storage Type: S3 only (not IPFS)"
 echo ""
 
 # Step 3: Preview what will be optimized
-echo "🔍 Checking how many videos qualify for storage diet..."
+echo "🔍 Checking how many S3 videos qualify for S3 diet..."
 PREVIEW=$(npm start -- list --older-than-days $((AGE_MONTHS * 30)) --view-threshold $VIEW_THRESHOLD --limit 1 --storage-type s3 2>/dev/null)
 if echo "$PREVIEW" | grep -q "No videos found"; then
-    echo "✅ No videos found matching criteria - storage is already optimized!"
+    echo "✅ No S3 videos found matching criteria - S3 storage is already optimized!"
+    echo "💡 Remember: Platform stopped using S3 4 years ago - old videos are IPFS-only"
     exit 0
 fi
 
-echo "📋 Found videos that qualify for storage diet optimization"
+echo "📋 Found S3 videos that qualify for S3 diet optimization"
 echo ""
 
 # Step 4: Dry run to show impact
-echo "🧪 Running optimization preview (dry run)..."
+echo "🧪 Running S3 optimization preview (dry run)..."
 echo ""
-npm start -- storage-diet --older-than-months $AGE_MONTHS --view-threshold $VIEW_THRESHOLD --batch-size $BATCH_SIZE --dry-run --no-confirm
+npm start -- s3-diet --older-than-months $AGE_MONTHS --view-threshold $VIEW_THRESHOLD --batch-size $BATCH_SIZE --dry-run --no-confirm
 
 if [ $? -ne 0 ]; then
     echo ""
@@ -163,9 +166,9 @@ echo "✅ Preview completed - showing potential storage savings"
 echo ""
 
 # Step 5: Final confirmation
-echo "🚨 FINAL CONFIRMATION - STORAGE DIET"
+echo "🚨 FINAL CONFIRMATION - S3 DIET"
 echo ""
-echo "⚠️  This will permanently delete high-resolution files:"
+echo "⚠️  This will permanently delete high-resolution S3 files:"
 echo "   • 1080p playlists and video segments"
 echo "   • 720p playlists and video segments"  
 echo "   • 360p playlists and video segments"
@@ -175,29 +178,30 @@ echo "✅ This will keep:"
 echo "   • 480p playlist and video segments (videos remain watchable)"
 echo "   • Thumbnails and metadata"
 echo ""
-echo "💡 Videos will still be accessible but only in 480p quality"
+echo "💡 S3 videos will still be accessible but only in 480p quality"
+echo "🪣 This only affects S3 storage (not IPFS)"
 echo ""
 read -p "Are you absolutely sure you want to proceed? [yes/no]: " final_confirm
 
 if [ "$final_confirm" != "yes" ]; then
-    echo "❌ Storage diet cancelled by user"
+    echo "❌ S3 diet cancelled by user"
     exit 0
 fi
 
 echo ""
-echo "🍎 Starting storage diet process..."
-echo "   Optimizing $BATCH_SIZE videos at a time"
+echo "🪣 Starting S3 diet process..."
+echo "   Optimizing $BATCH_SIZE S3 videos at a time"
 echo "   Keeping only 480p resolution per video"
 echo "   You can press Ctrl+C to stop at any time"
 echo ""
 
-# Step 6: Execute storage diet
+# Step 6: Execute S3 diet
 START_TIME=$(date)
-echo "🧹 Executing storage diet optimization..."
+echo "🧹 Executing S3 diet optimization..."
 echo ""
 
-# Run storage diet in background and monitor progress
-npm start -- storage-diet --older-than-months $AGE_MONTHS --view-threshold $VIEW_THRESHOLD --batch-size $BATCH_SIZE --no-confirm > /tmp/3speak_diet_$$.log 2>&1 &
+# Run S3 diet in background and monitor progress
+npm start -- s3-diet --older-than-months $AGE_MONTHS --view-threshold $VIEW_THRESHOLD --batch-size $BATCH_SIZE --no-confirm > /tmp/3speak_s3diet_$$.log 2>&1 &
 DIET_PID=$!
 
 # Show progress indicator while optimization runs
@@ -205,9 +209,9 @@ SPINNER=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 SPIN_INDEX=0
 SECONDS_ELAPSED=0
 
-echo -n "Optimizing videos "
+echo -n "Optimizing S3 videos "
 while kill -0 $DIET_PID 2>/dev/null; do
-    printf "\r${SPINNER[$SPIN_INDEX]} Optimizing videos (keeping only 480p)... %02d:%02d elapsed" $((SECONDS_ELAPSED/60)) $((SECONDS_ELAPSED%60))
+    printf "\r${SPINNER[$SPIN_INDEX]} Optimizing S3 videos (keeping only 480p)... %02d:%02d elapsed" $((SECONDS_ELAPSED/60)) $((SECONDS_ELAPSED%60))
     SPIN_INDEX=$(( (SPIN_INDEX + 1) % 10 ))
     sleep 1
     SECONDS_ELAPSED=$((SECONDS_ELAPSED + 1))
@@ -221,25 +225,22 @@ DIET_EXIT_CODE=$?
 printf "\r\033[K"
 
 # Display the output
-DIET_OUTPUT=$(cat /tmp/3speak_diet_$$.log)
+DIET_OUTPUT=$(cat /tmp/3speak_s3diet_$$.log)
 echo "$DIET_OUTPUT"
 
 # Clean up temp file
-rm -f /tmp/3speak_diet_$$.log
-
-# Display the output
-echo "$DIET_OUTPUT"
+rm -f /tmp/3speak_s3diet_$$.log
 
 if [ $DIET_EXIT_CODE -eq 0 ]; then
     echo ""
-    echo "✅ Storage diet completed successfully!"
+    echo "✅ S3 diet completed successfully!"
     
     # Extract and highlight storage freed information
-    STORAGE_SAVED=$(echo "$DIET_OUTPUT" | grep "💾 STORAGE SAVED:" || echo "Storage information not available")
+    STORAGE_SAVED=$(echo "$DIET_OUTPUT" | grep "💾 S3 STORAGE SAVED:" || echo "Storage information not available")
     if [ "$STORAGE_SAVED" != "Storage information not available" ]; then
         echo ""
         echo "🎉 RESULT: $STORAGE_SAVED"
-        echo "🍎 Videos remain accessible in 480p quality!"
+        echo "🪣 S3 videos remain accessible in 480p quality!"
     fi
     
     echo ""
@@ -250,7 +251,7 @@ if [ $DIET_EXIT_CODE -eq 0 ]; then
     echo "🕐 Finished: $(date)"
 else
     echo ""
-    echo "❌ Storage diet encountered some issues. Check the output above."
+    echo "❌ S3 diet encountered some issues. Check the output above."
     echo "   The process may have been interrupted or encountered errors."
     echo "   You can safely run this script again."
 fi

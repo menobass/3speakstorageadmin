@@ -80,11 +80,38 @@ These scripts make storage cleanup super simple and safe. No need to remember co
    - Targets content unlikely to be missed
    - **Risk Level:** Medium - Reviews criteria before proceeding
 
-8. **`storage-diet.sh`** 🆕
-   - **MEGA OPTIMIZER:** Keep only 480p resolution for old, low-engagement videos
-   - Deletes 1080p, 720p, 360p, and source files - keeps videos watchable
-   - **Storage Impact:** 60-80% reduction per video
-   - **Risk Level:** LOW - Videos remain accessible in 480p quality
+### 🪣 `s3-diet.sh` - S3 Storage Optimizer (Rare/New Videos Only)
+**What it does:** Optimizes S3 storage by keeping only 480p for low-engagement S3 videos
+**Safety:** Low risk (S3 videos remain watchable in 480p)
+**Reality Check:** Platform stopped using S3 4 years ago - limited savings expected
+**Storage Impact:** 60-80% reduction per S3 video (but few S3 videos exist)
+**When to use:** If you have newer S3 uploads to optimize
+
+```bash
+./scripts/s3-diet.sh
+```
+
+### 🗂️ `ipfs-diet.sh` - IPFS Storage Optimizer (THE BIG ONE) 🆕
+**What it does:** Unpins low-engagement IPFS videos to free storage space
+**Safety:** ⚠️ HIGH IMPACT - Videos become inaccessible after unpinning
+**Reality Check:** This is where the major storage savings happen (old IPFS videos)
+**Storage Impact:** 100% freed per unpinned video
+**When to use:** When you need significant storage savings and can sacrifice old, low-engagement content
+
+```bash
+./scripts/ipfs-diet.sh
+```
+
+### 🥗 `slim-user.sh` - Targeted User Storage Diet (NEW)
+**What it does:** User-focused storage optimization - like storage-diet but for specific accounts
+**Safety:** Medium (targets only old videos from specific user)
+**Features:** Cost savings calculation, age-based targeting, keeps videos watchable
+**Space saved:** ~70% reduction per optimized video
+**When to use:** Optimize specific heavy users, reduce storage costs for inactive creators
+
+```bash
+./scripts/slim-user.sh
+```
 
 ### ☢️ `nuke-account.sh` - Nuclear Account Deletion (EXTREME)
 **What it does:** Erases every trace of a specific account (S3 files, IPFS hashes, database records)
@@ -122,7 +149,10 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 5. **Monthly maintenance:** `./scripts/clean-stuck-uploads.sh`
 6. **As needed:** `./scripts/remove-banned-content.sh`
 7. **Emergency only:** `./scripts/clean-low-engagement.sh` (removes published content!)
-8. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
+8. **S3 optimization:** `./scripts/s3-diet.sh` (optimize rare S3 videos)
+9. **IPFS optimization:** `./scripts/ipfs-diet.sh` (THE BIG SAVINGS - unpins old IPFS content)
+10. **User optimization:** `./scripts/slim-user.sh` (target specific heavy users)
+11. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
 
 **For Regular Maintenance:**
 
@@ -140,6 +170,12 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 
 # Emergency only: Remove low-engagement content
 ./scripts/clean-low-engagement.sh
+
+# Major storage optimization: Unpin old IPFS content (makes videos inaccessible)
+./scripts/ipfs-diet.sh
+
+# Minor optimization: Optimize newer S3 videos to 480p (keeps videos watchable)
+./scripts/s3-diet.sh
 
 # Nuclear option: Completely remove a hostile account
 ./scripts/nuke-account.sh
@@ -195,9 +231,11 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 
 1. **Always start with status-check.sh** to understand current state
 2. **Use free-deleted-videos.sh first** - it's the safest big win
-3. **Start with small batch sizes** until you're comfortable
-4. **Run during off-peak hours** for less system impact
-5. **Check logs** if anything seems unusual: `tail -f logs/app.log`
+3. **For major storage savings, use ipfs-diet.sh** - this is where the big wins are (old IPFS content)
+4. **s3-diet.sh has limited impact** - platform stopped using S3 4 years ago
+5. **Start with small batch sizes** until you're comfortable
+6. **Run during off-peak hours** for less system impact
+7. **Check logs** if anything seems unusual: `tail -f logs/app.log`
 
 ## 🎯 For VPS Deployment
 
