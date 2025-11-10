@@ -75,6 +75,29 @@ export async function reconcileS3Command(options: ReconcileOptions) {
 
     logger.info(`🎯 Reconciling ${s3Videos.length} pure S3 videos`);
     
+    // Test S3 connectivity before proceeding
+    logger.info('🔍 Testing S3 connectivity...');
+    try {
+      const serviceInfo = await s3Service.getServiceInfo();
+      logger.info(`S3 Service: ${serviceInfo.bucketName} (${serviceInfo.accessible ? 'accessible' : 'not accessible'})`);
+      
+      if (!serviceInfo.accessible) {
+        logger.error('❌ S3 service is not accessible! Cannot proceed with reconciliation.');
+        return;
+      }
+      
+      // Test with a known object or list objects
+      const objects = await s3Service.listObjects('', 5);
+      logger.info(`S3 connectivity test: Found ${objects.length} objects in bucket`);
+      
+      if (objects.length === 0) {
+        logger.warn('⚠️  No objects found in S3 bucket - this might indicate connection issues');
+      }
+    } catch (error) {
+      logger.error('❌ Failed to connect to S3 service', error);
+      return;
+    }
+    
     if (options.dryRun) {
       logger.info('🔍 DRY RUN MODE - No changes will be made');
     }
@@ -121,16 +144,29 @@ export async function reconcileS3Command(options: ReconcileOptions) {
           const resolutions = ['360p', '480p', '720p', '1080p'];
           let exists = false;
           let foundResolution = '';
+          let hasErrors = false;
           
           // Check each resolution to see if any manifest exists
           for (const resolution of resolutions) {
             const manifestKey = `${permlink}/${resolution}.m3u8`;
-            const manifestExists = await s3Service.objectExists(manifestKey);
-            if (manifestExists) {
-              exists = true;
-              foundResolution = resolution;
-              break; // Found at least one, video is available
+            try {
+              const manifestExists = await s3Service.objectExists(manifestKey);
+              if (manifestExists) {
+                exists = true;
+                foundResolution = resolution;
+                break; // Found at least one, video is available
+              }
+            } catch (error) {
+              logger.error(`Failed to check ${manifestKey}`, error);
+              hasErrors = true;
             }
+          }
+          
+          // Skip this video if we had S3 connection errors
+          if (hasErrors && !exists) {
+            logger.warn(`⚠️  Skipping ${permlink} due to S3 connection errors`);
+            result.errors++;
+            continue;
           }
           
           if (exists) {
