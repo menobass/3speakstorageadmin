@@ -132,6 +132,23 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 ./scripts/trim-fat.sh
 ```
 
+### 🎯 `slim-video.sh` - Single Video Storage Optimizer (S3 Videos Only) 🆕
+**What it does:** Optimize storage for one specific video with 3Speak URL support
+**Storage Type:** ✅ **S3 videos only** - keeps smallest available resolution
+**Safety:** Low risk (video remains watchable, just in lower resolution)
+**Features:** 3Speak URL parsing, automatic resolution analysis, 80%+ storage savings
+**Space saved:** ~80% reduction per optimized S3 video
+**IPFS Handling:** Gracefully detects IPFS videos and provides informative message (no changes made)
+**When to use:** Optimize individual videos quickly, test storage optimization before bulk operations
+
+```bash
+# Using 3Speak URL (easiest)
+./scripts/slim-video.sh https://3speak.tv/watch?v=alice/my-video
+
+# Direct permlink usage
+./scripts/slim-video.sh alice/my-video
+```
+
 ### ☢️ `nuke-account.sh` - Nuclear Account Deletion (Both Storage Types - EXTREME)
 **What it does:** Erases every trace of a specific account from all storage systems
 **Storage Type:** ✅ **Both S3 and IPFS** - intelligently detects and applies appropriate destruction method
@@ -201,9 +218,10 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 7. **Emergency only:** `./scripts/clean-low-engagement.sh` (removes published content!)
 8. **S3 optimization:** `./scripts/s3-diet.sh` (optimize rare S3 videos)
 9. **IPFS optimization:** `./scripts/ipfs-diet.sh` (THE BIG SAVINGS - unpins old IPFS content)
-10. **User optimization:** `./scripts/slim-user.sh` (target specific heavy users)
-11. **Account fat trimming:** `./scripts/trim-fat.sh` (flexible account cleanup with age/engagement criteria)
-12. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
+10. **Single video test:** `./scripts/slim-video.sh` (test optimization on individual videos)
+11. **User optimization:** `./scripts/slim-user.sh` (target specific heavy users)
+12. **Account fat trimming:** `./scripts/trim-fat.sh` (flexible account cleanup with age/engagement criteria)
+13. **Nuclear option:** `./scripts/nuke-account.sh` (per-account wipe, irreversible)
 
 **For Regular Maintenance:**
 
@@ -227,6 +245,9 @@ These scripts make storage cleanup super simple and safe. No need to remember co
 
 # 🔧 Minor optimization: Optimize S3 videos to 480p (~1K videos - limited impact)
 ./scripts/s3-diet.sh
+
+# 🎯 Single video optimization: Test on individual videos (great for testing)
+./scripts/slim-video.sh https://3speak.tv/watch?v=user/video
 
 # 🎯 User-specific optimization: Target heavy S3 users (cost savings calculations)
 ./scripts/slim-user.sh

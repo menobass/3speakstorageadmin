@@ -21,7 +21,9 @@ npm run dev -- cleanup --[criteria] --batch-size 50 # 3. Full cleanup
 # STORAGE OPTIMIZATION (NEW!)
 npm run dev -- slim-user --username myuser --dry-run    # Optimize user's storage
 npm run dev -- slim-video --permlink my-video           # Optimize single video
-./slim-video.sh https://3speak.tv/watch?v=alice/my-vid  # Easy single video optimization
+✅ Operation completed!
+💡 To execute the optimization, run:
+   ./scripts/slim-video.sh "https://3speak.tv/watch?v=testuser/testvideo" --execute
 
 # ACCOUNT FAT TRIMMING
 npm run dev -- trim-fat --username myuser --dry-run # Preview account cleanup
@@ -92,7 +94,7 @@ MAX_BATCH_SIZE=100
 
 **🆕 Storage Optimization Scripts:**
 ```bash
-./slim-video.sh https://3speak.tv/watch?v=alice/my-video  # Optimize single video (NEW!)
+./scripts/slim-video.sh https://3speak.tv/watch?v=alice/my-video  # Optimize single video (NEW!)
 ```
 
 These scripts:
@@ -131,8 +133,8 @@ npm run dev -- stats
 npm run dev -- --help
 
 # 3. 🆕 Optimize storage (NEW!)
-./slim-video.sh https://3speak.tv/watch?v=user/video-name  # Easy single video
-npm run dev -- slim-user --username myuser --dry-run       # Optimize all user videos
+./scripts/slim-video.sh https://3speak.tv/watch?v=user/video-name  # Easy single video
+npm run dev -- slim-user --username myuser --dry-run             # Optimize all user videos
 ```
 
 ### 📊 Analysis Commands (Safe - No Changes Made)
@@ -178,7 +180,7 @@ npm run dev -- stats --detailed
 
 # 🆕 STORAGE OPTIMIZATION (Saves 80%+ space!)
 # Single video optimization (easiest)
-./slim-video.sh https://3speak.tv/watch?v=alice/my-video
+./scripts/slim-video.sh https://3speak.tv/watch?v=alice/my-video
 
 # User storage optimization (bulk)
 npm run dev -- slim-user --username myuser --dry-run     # Preview optimization
@@ -383,13 +385,13 @@ npm run dev -- slim-video --permlink my-video --author alice --dry-run
 npm run dev -- slim-video --permlink my-video --author alice
 
 # 🆕 Easy wrapper script with 3Speak URL support
-./slim-video.sh https://3speak.tv/watch?v=alice/my-video
+./scripts/slim-video.sh https://3speak.tv/watch?v=alice/my-video
 ```
 
 **🆕 Easy Script Usage:**
 ```bash
 # The wrapper script supports full 3Speak URLs
-./slim-video.sh https://3speak.tv/watch?v=alice/my-video-title
+./scripts/slim-video.sh https://3speak.tv/watch?v=alice/my-video-title
 
 # Prompts for confirmation and shows savings estimate
 # Automatically detects storage type (S3 vs IPFS)
@@ -453,8 +455,8 @@ src/
 ├── utils/        # Helper functions and logging
 ├── index.ts      # Main CLI entry point
 scripts/          # User-friendly wrapper scripts
+│   └── slim-video.sh     # 🆕 Easy single video optimization
 debug/            # 🆕 Debug scripts with security best practices
-├── slim-video.sh # 🆕 Easy single video optimization
 └── README.md     # 🆕 Updated with new features
 ```
 
