@@ -1,5 +1,4 @@
 import { DatabaseService } from '../services/database';
-import { S3Service } from '../services/s3';
 import { Video } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config';
@@ -14,7 +13,6 @@ interface PurgeS3Options {
 
 export async function purgeS3Command(options: PurgeS3Options): Promise<void> {
   const db = new DatabaseService();
-  const s3Service = new S3Service();
   const isDryRun = options.dryRun === true; // Only dry run if explicitly requested
   
   try {
@@ -49,75 +47,17 @@ export async function purgeS3Command(options: PurgeS3Options): Promise<void> {
     if (isDryRun) {
       logger.info('=== DRY RUN ANALYSIS ===');
       
-      const analysis = {
-        videosToCheck: videos.length,
-        existingVideos: 0,
-        missingVideos: 0,
-        alreadyDeleted: 0,
-        checkedCount: 0,
-        errors: [] as string[]
-      };
+      // Count videos by status
+      const alreadyDeleted = videos.filter(v => v.status === 'deleted').length;
+      const toBeMarkedDeleted = videos.length - alreadyDeleted;
 
-      const progressBar = new ProgressBar(Math.min(videos.length, 20), 'Analyzing S3 videos');
-
-      // Check a sample of videos to estimate the scope
-      const sampleSize = Math.min(videos.length, 20);
-      for (let i = 0; i < sampleSize; i++) {
-        const video = videos[i];
-        
-        try {
-          // Check if already marked as deleted
-          if (video.status === 'deleted') {
-            analysis.alreadyDeleted++;
-            progressBar.increment(`${video._id} - already deleted`);
-            continue;
-          }
-
-          const s3Paths = db.getS3Paths(video);
-          let videoExists = false;
-
-          // Check if any S3 files exist for this video
-          for (const filePath of s3Paths.files) {
-            if (await s3Service.objectExists(filePath)) {
-              videoExists = true;
-              break;
-            }
-          }
-
-          if (videoExists) {
-            analysis.existingVideos++;
-            progressBar.increment(`${video._id} - exists`);
-          } else {
-            analysis.missingVideos++;
-            progressBar.increment(`${video._id} - missing`);
-          }
-
-          analysis.checkedCount++;
-        } catch (error: any) {
-          analysis.errors.push(`Error checking ${video._id}: ${error.message}`);
-          progressBar.increment(`${video._id} - error`);
-        }
-      }
-
-      progressBar.complete('Sample analysis completed');
-
-      const missingPercentage = (analysis.missingVideos / analysis.checkedCount * 100).toFixed(1);
-      const estimatedMissing = Math.round(videos.length * (analysis.missingVideos / analysis.checkedCount));
-
-      logger.info(`=== S3 PURGE PREVIEW (based on ${sampleSize} video sample) ===`);
+      logger.info(`=== S3 PURGE PREVIEW ===`);
       logger.info(`Total S3 videos in database: ${videos.length}`);
-      logger.info(`Sample checked: ${analysis.checkedCount}`);
-      logger.info(`Sample existing in S3: ${analysis.existingVideos}`);
-      logger.info(`Sample missing from S3: ${analysis.missingVideos} (${missingPercentage}%)`);
-      logger.info(`Already deleted: ${analysis.alreadyDeleted}`);
-      logger.info(`📊 ESTIMATED: ~${estimatedMissing} videos missing from S3`);
-      logger.info(`These videos would be marked as 'deleted' status`);
+      logger.info(`Already marked as deleted: ${alreadyDeleted}`);
+      logger.info(`📊 WILL BE MARKED AS DELETED: ${toBeMarkedDeleted} videos`);
+      logger.info(`💡 S3 bucket is confirmed empty - no individual file checks needed`);
+      logger.info(`⚡ This will be a fast MongoDB batch update operation`);
       logger.info(`Use --no-dry-run to execute the S3 purge`);
-      
-      if (analysis.errors.length > 0) {
-        logger.warn(`Errors during sample check: ${analysis.errors.length}`);
-        analysis.errors.slice(0, 5).forEach(error => logger.warn(`  ${error}`));
-      }
       
       return;
     }
@@ -129,78 +69,77 @@ export async function purgeS3Command(options: PurgeS3Options): Promise<void> {
       return;
     }
 
-    // Perform actual S3 purge
-    logger.info(`Starting S3 purge in batches of ${batchSize}`);
+    // Perform actual S3 purge - batch MongoDB update
+    logger.info(`Starting S3 purge with MongoDB batch update`);
 
     const results = {
       processed: 0,
       alreadyDeleted: 0,
-      stillExists: 0,
       markedAsDeleted: 0,
       errors: [] as string[]
     };
 
-    const progressBar = new ProgressBar(videos.length, 'Purging S3 videos');
+    // Filter videos that need to be updated (not already deleted)
+    const videosToUpdate = videos.filter(v => v.status !== 'deleted');
+    results.alreadyDeleted = videos.length - videosToUpdate.length;
 
-    // Process videos in batches
-    for (let i = 0; i < videos.length; i += batchSize) {
-      const batch = videos.slice(i, i + batchSize);
-      logger.info(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(videos.length / batchSize)}`);
+    logger.info(`Videos already deleted: ${results.alreadyDeleted}`);
+    logger.info(`Videos to mark as deleted: ${videosToUpdate.length}`);
 
-      for (const video of batch) {
+    if (videosToUpdate.length === 0) {
+      logger.info('All S3 videos are already marked as deleted!');
+    } else {
+      const progressBar = new ProgressBar(videosToUpdate.length, 'Batch updating video statuses');
+
+      // Process videos in batches for MongoDB update
+      for (let i = 0; i < videosToUpdate.length; i += batchSize) {
+        const batch = videosToUpdate.slice(i, i + batchSize);
+        logger.info(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(videosToUpdate.length / batchSize)}`);
+
         try {
-          // Skip if already deleted
-          if (video.status === 'deleted') {
-            results.alreadyDeleted++;
-            results.processed++;
-            progressBar.increment(`${video._id} - skip (deleted)`);
-            continue;
-          }
+          // Batch update video statuses
+          const videoIds = batch.map(v => v._id);
+          await db.batchUpdateVideoStatus(videoIds, 'deleted');
+          
+          results.markedAsDeleted += batch.length;
+          results.processed += batch.length;
 
-          const s3Paths = db.getS3Paths(video);
-          let videoExists = false;
-
-          // Check if any S3 files exist for this video
-          for (const filePath of s3Paths.files) {
-            if (await s3Service.objectExists(filePath)) {
-              videoExists = true;
-              break;
-            }
-          }
-
-          if (videoExists) {
-            results.stillExists++;
-            progressBar.increment(`${video._id} - exists`);
-          } else {
-            // Mark as deleted in database
-            await db.updateVideoStatus(video._id, 'deleted');
-            results.markedAsDeleted++;
+          // Update progress for each video in batch
+          batch.forEach(video => {
             progressBar.increment(`${video._id} - marked deleted`);
-          }
-
-          results.processed++;
+          });
 
         } catch (error: any) {
-          logger.error(`Error processing video ${video._id}`, error);
-          results.errors.push(`Error processing ${video._id}: ${error.message}`);
-          results.processed++;
-          progressBar.increment(`${video._id} - error`);
+          logger.error(`Error processing batch starting at index ${i}`, error);
+          results.errors.push(`Error processing batch at ${i}: ${error.message}`);
+          
+          // Try individual updates as fallback
+          for (const video of batch) {
+            try {
+              await db.updateVideoStatus(video._id, 'deleted');
+              results.markedAsDeleted++;
+              results.processed++;
+              progressBar.increment(`${video._id} - marked deleted (fallback)`);
+            } catch (individualError: any) {
+              logger.error(`Error updating individual video ${video._id}`, individualError);
+              results.errors.push(`Individual update failed ${video._id}: ${individualError.message}`);
+              progressBar.increment(`${video._id} - error`);
+            }
+          }
+        }
+
+        // Small pause between batches for MongoDB stability
+        if (i + batchSize < videosToUpdate.length) {
+          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms pause
         }
       }
 
-      // Pause between batches to avoid overwhelming S3
-      if (i + batchSize < videos.length) {
-        logger.info('Pausing between batches for S3 stability...');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second pause
-      }
+      progressBar.complete('S3 purge batch update completed');
     }
-
-    progressBar.complete('S3 purge completed');
 
     logger.info('=== S3 PURGE COMPLETED ===');
     logger.info(`Videos processed: ${results.processed}`);
     logger.info(`Already deleted: ${results.alreadyDeleted}`);
-    logger.info(`Still exist in S3: ${results.stillExists}`);
     logger.info(`🗑️ Marked as deleted: ${results.markedAsDeleted}`);
     logger.info(`Errors: ${results.errors.length}`);
 

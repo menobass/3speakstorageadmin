@@ -148,6 +148,19 @@ export class DatabaseService {
     );
   }
 
+  async batchUpdateVideoStatus(videoIds: string[], status: 'published' | 'deleted' | 'uploaded' | 'encoding_ipfs' | 'processing' | 'failed' | 'draft'): Promise<void> {
+    const videos = this.getVideosCollection();
+    await videos.updateMany(
+      { _id: { $in: videoIds } },
+      { 
+        $set: { 
+          status,
+          updatedAt: new Date()
+        }
+      }
+    );
+  }
+
   async markVideoAsCleanedUp(videoId: string, cleanupInfo: {
     cleanupDate: Date;
     cleanupReason: string;
