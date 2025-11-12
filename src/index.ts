@@ -16,6 +16,8 @@ import { slimVideoCommand } from './commands/slim-video';
 import { trimFatCommand } from './commands/trim-fat';
 import { reconcileS3Command } from './commands/reconcile-s3';
 import { purgeS3Command } from './commands/purge-s3';
+import { purgeFailedCommand } from './commands/purge-failed';
+import { purgeAbandonedCommand } from './commands/purge-abandoned';
 
 const program = new Command();
 
@@ -156,6 +158,27 @@ program
   .option('--dry-run', 'Preview purge without making changes (default: true)')
   .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
   .action(purgeS3Command);
+
+program
+  .command('purge-failed')
+  .description('Clean up failed videos and unpin their IPFS content (videos that failed encoding/processing)')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 100)')
+  .option('--limit <count>', 'Limit number of videos to process (default: all)')
+  .option('--dry-run', 'Preview purge without making changes')
+  .option('--no-dry-run', 'Actually execute the purge (dangerous!)')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(purgeFailedCommand);
+
+program
+  .command('purge-abandoned')
+  .description('Clean up abandoned manual publish videos and unpin their IPFS content (videos stuck in publish_manual)')
+  .option('--older-than-days <days>', 'Target videos stuck in publish_manual for more than specified days (default: 7)')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 100)')
+  .option('--limit <count>', 'Limit number of videos to process (default: all)')
+  .option('--dry-run', 'Preview purge without making changes')
+  .option('--no-dry-run', 'Actually execute the purge (dangerous!)')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(purgeAbandonedCommand);
 
 async function main() {
   try {
