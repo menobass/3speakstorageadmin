@@ -15,6 +15,7 @@ import { slimUserCommand } from './commands/slim-user';
 import { slimVideoCommand } from './commands/slim-video';
 import { trimFatCommand } from './commands/trim-fat';
 import { reconcileS3Command } from './commands/reconcile-s3';
+import { purgeS3Command } from './commands/purge-s3';
 
 const program = new Command();
 
@@ -146,6 +147,15 @@ program
   .option('--dry-run', 'Preview reconciliation without making changes')
   .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
   .action(reconcileS3Command);
+
+program
+  .command('purge-s3')
+  .description('Mark S3 videos as deleted if they no longer exist in storage (mass cleanup after storage deletion)')
+  .option('--batch-size <size>', 'Process videos in batches of specified size (default: 100)')
+  .option('--limit <count>', 'Limit number of videos to process (default: all)')
+  .option('--dry-run', 'Preview purge without making changes (default: true)')
+  .option('--no-confirm', 'Skip confirmation prompts (use with caution)')
+  .action(purgeS3Command);
 
 async function main() {
   try {
