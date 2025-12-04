@@ -9,7 +9,7 @@ export const config: StorageConfig = {
     dbName: process.env.MONGODB_DB_NAME || '3speak'
   },
   ipfs: {
-    apiUrl: process.env.IPFS_API_URL || 'http://localhost:5001',
+    apiUrl: process.env.IPFS_ENDPOINT || 'http://localhost:5001',
     gatewayUrl: process.env.IPFS_GATEWAY_URL || 'https://ipfs.io'
   },
   s3: {
@@ -28,9 +28,7 @@ export const config: StorageConfig = {
 
 export const validateConfig = (): void => {
   const required = [
-    'MONGODB_URI',
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY'
+    'MONGODB_URI'
   ];
 
   const missing = required.filter(key => !process.env[key]);

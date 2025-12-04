@@ -1,0 +1,28 @@
+[Unit]
+Description=3Speak IPFS Storage Management Web Interface
+Documentation=https://github.com/menobass/3speakstorageadmin
+After=network.target mongodb.service
+
+[Service]
+Type=simple
+User=meno
+Group=meno
+WorkingDirectory=/home/meno/Documents/menosoft/3speakstorageadmin
+Environment=NODE_ENV=production
+EnvironmentFile=/home/meno/Documents/menosoft/3speakstorageadmin/.env
+ExecStart=/usr/bin/npm run web
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=3speak-ipfs-storage-management
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/meno/Documents/menosoft/3speakstorageadmin/logs
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

@@ -5,6 +5,8 @@ import { Video } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { ProgressBar } from '../utils/progress';
+import { ProgressManager } from '../utils/progress-manager';
+import { UnifiedLogger } from '../utils/unified-logger';
 
 interface NukeAccountOptions {
   username?: string;
@@ -56,28 +58,45 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export async function nukeAccountCommandWithProgress(operationId: string, options: NukeAccountOptions): Promise<void> {
+  const progressManager = ProgressManager.getInstance();
+  
+  try {
+    await nukeAccountCommandInternal(options, progressManager, operationId);
+    progressManager.completeOperation(operationId);
+  } catch (error: any) {
+    progressManager.errorOperation(operationId, error.message);
+    throw error;
+  }
+}
+
 export async function nukeAccountCommand(options: NukeAccountOptions): Promise<void> {
+  return nukeAccountCommandInternal(options);
+}
+
+async function nukeAccountCommandInternal(options: NukeAccountOptions, progressManager?: ProgressManager, operationId?: string): Promise<void> {
+  const uLog = new UnifiedLogger(progressManager, operationId);
   const username = options.username?.trim();
   if (!username) {
-    logger.error('The --username option is required for nuke-account');
+    uLog.error('The --username option is required for nuke-account');
     return;
   }
 
   const includeCleaned = options.includeCleaned === true;
   const limit = options.limit ? parseInt(options.limit, 10) : 0;
   if (options.limit && (Number.isNaN(limit) || limit < 0)) {
-    logger.error('Invalid limit specified. Please provide a positive number.');
+    uLog.error('Invalid limit specified. Please provide a positive number.');
     return;
   }
 
   const batchSizeInput = options.batchSize ? parseInt(options.batchSize, 10) : 25;
   if (Number.isNaN(batchSizeInput) || batchSizeInput <= 0) {
-    logger.error('Invalid batch size specified. Please provide a positive number.');
+    uLog.error('Invalid batch size specified. Please provide a positive number.');
     return;
   }
   const batchSize = Math.min(batchSizeInput, 500);
   if (batchSizeInput > 500) {
-    logger.warn(`Batch size capped at 500 for safety. Using ${batchSize}.`);
+    uLog.warn(`Batch size capped at 500 for safety. Using ${batchSize}.`);
   }
 
   const statusFilter = options.status
@@ -98,7 +117,7 @@ export async function nukeAccountCommand(options: NukeAccountOptions): Promise<v
     });
 
     if (videos.length === 0) {
-      logger.info(`No videos found for account ${username}. Nothing to do.`);
+      uLog.info(`❌ No videos found for account ${username}. Nothing to do.`);
       return;
     }
 
@@ -137,43 +156,51 @@ export async function nukeAccountCommand(options: NukeAccountOptions): Promise<v
 
     const { gb, tb } = formatBytes(totalBytes);
 
-    logger.info('=== NUKE ACCOUNT SUMMARY ===');
-    logger.info(`Target account: ${username}`);
-    logger.info(`Total videos found: ${videos.length}`);
-    logger.info(`Already marked as cleaned: ${alreadyCleaned}`);
-    logger.info(`Recorded storage size: ${gb} GB (${tb} TB)`);
-    logger.info(`Storage types -> S3: ${storageCounts.s3}, IPFS: ${storageCounts.ipfs}, Unknown: ${storageCounts.unknown}`);
-    logger.info(`Unique S3 files targeted: ${uniqueS3Files.size}`);
-    logger.info(`Unique S3 prefixes targeted: ${uniqueS3Prefixes.size}`);
-    logger.info(`Unique IPFS hashes targeted: ${uniqueIpfsHashes.size}`);
-    logger.info('Status breakdown:');
+    uLog.info('=== NUKE ACCOUNT SUMMARY ===');
+    uLog.info(`🎯 Target account: ${username}`);
+    uLog.info(`📼 Total videos found: ${videos.length}`);
+    uLog.info(`✅ Already marked as cleaned: ${alreadyCleaned}`);
+    uLog.info(`💾 Recorded storage size: ${gb} GB (${tb} TB)`);
+    uLog.info(`🗂️ Storage types -> S3: ${storageCounts.s3}, IPFS: ${storageCounts.ipfs}, Unknown: ${storageCounts.unknown}`);
+    uLog.info(`📁 Unique S3 files targeted: ${uniqueS3Files.size}`);
+    uLog.info(`📂 Unique S3 prefixes targeted: ${uniqueS3Prefixes.size}`);
+    uLog.info(`📌 Unique IPFS hashes targeted: ${uniqueIpfsHashes.size}`);
+    uLog.info('📊 Status breakdown:');
     Object.entries(statusCounts).forEach(([status, count]) => {
-      logger.info(`  - ${status}: ${count}`);
+      uLog.info(`  - ${status}: ${count}`);
     });
 
     const sampleSize = Math.min(5, videos.length);
     if (sampleSize > 0) {
-      logger.info('Sample videos:');
+      uLog.info('📹 Sample videos:');
       for (let i = 0; i < sampleSize; i++) {
         const video = videos[i];
-        const title = video.title || video.permlink || video._id;
-        logger.info(`  ${i + 1}. ${title} | status=${video.status} | size=${((video.size || 0) / (1024 ** 2)).toFixed(2)} MB`);
+        uLog.logVideoPreview(video, i, sampleSize);
       }
     }
 
     if (options.dryRun) {
-      logger.info('Dry run completed. No changes were made.');
-      logger.info('Re-run with --no-confirm (and without --dry-run) to execute the account nuke.');
+      uLog.previewHeader(`NUKE ACCOUNT: ${username}`);
+      uLog.logPreviewSummary({
+        totalVideos: videos.length,
+        totalSizeGB: totalBytes / (1024 ** 3),
+        storageBreakdown: { s3: storageCounts.s3, ipfs: storageCounts.ipfs, unknown: storageCounts.unknown },
+        additionalInfo: [
+          `S3 files to delete: ${uniqueS3Files.size}`,
+          `S3 prefixes to delete: ${uniqueS3Prefixes.size}`,
+          `IPFS hashes to unpin: ${uniqueIpfsHashes.size}`
+        ]
+      });
       return;
     }
 
     if (config.safety.requireConfirmation && options.confirm !== false) {
-      logger.info('Confirmation required. Re-run with --no-confirm to execute this destructive operation.');
+      uLog.info('⚠️ Confirmation required. Re-run with --no-confirm to execute this destructive operation.');
       return;
     }
 
-    logger.warn(`Proceeding to permanently delete all videos for account ${username}`);
-    logger.warn('This will delete S3 objects, unpin IPFS hashes, and mark all videos as deleted.');
+    uLog.warn(`💣 Proceeding to permanently delete all videos for account ${username}`);
+    uLog.warn('⚠️ This will delete S3 objects, unpin IPFS hashes, and mark all videos as deleted.');
 
     const results = {
       processed: 0,
@@ -190,12 +217,14 @@ export async function nukeAccountCommand(options: NukeAccountOptions): Promise<v
     const processedS3Prefixes = new Set<string>();
     const processedIpfsHashes = new Set<string>();
 
-    const progressBar = new ProgressBar(videos.length, `Nuking ${username}`);
+    // Initialize progress tracking
+    uLog.initProgress(videos.length, batchSize);
 
     for (let i = 0; i < videos.length; i += batchSize) {
       const batch = videos.slice(i, i + batchSize);
       results.batches++;
-      logger.info(`Processing batch ${results.batches}/${Math.ceil(videos.length / batchSize)} (${batch.length} videos)`);
+      uLog.info(`📦 Processing batch ${results.batches}/${Math.ceil(videos.length / batchSize)} (${batch.length} videos)`);
+      uLog.logBatchAges(batch, results.batches - 1);
 
       for (const video of batch) {
         try {
@@ -253,13 +282,14 @@ export async function nukeAccountCommand(options: NukeAccountOptions): Promise<v
           results.totalStorageBytes += video.size || 0;
           results.processed++;
 
-          progressBar.increment(`[${storageType}] ${label}`);
+          uLog.updateProgress(results.processed, results.batches);
+          uLog.info(`✅ [${storageType}] ${label}`);
         } catch (error: any) {
           const message = `Failed to process video ${video._id}: ${error.message || error}`;
-          logger.error(message, error);
+          uLog.error(message);
           results.errors.push(message);
           results.processed++;
-          progressBar.increment('error');
+          uLog.updateProgress(results.processed, results.batches);
         }
       }
 
@@ -268,28 +298,25 @@ export async function nukeAccountCommand(options: NukeAccountOptions): Promise<v
       }
     }
 
-    progressBar.complete('Account nuke finished');
-    console.log('');
-
     const processedStorage = formatBytes(results.totalStorageBytes);
 
-    logger.info('=== NUKE ACCOUNT COMPLETED ===');
-    logger.info(`Account: ${username}`);
-    logger.info(`Videos processed: ${results.processed}`);
-    logger.info(`Batches: ${results.batches}`);
-    logger.info(`S3 objects deleted: ${results.s3ObjectsDeleted}`);
-    logger.info(`IPFS hashes unpinned: ${results.ipfsHashesUnpinned}`);
-    logger.info(`Database records updated: ${results.dbUpdated}`);
-    logger.info(`Targeted storage: ${processedStorage.gb} GB (${processedStorage.tb} TB)`);
-    logger.info(`Duplicate storage references skipped: ${results.skippedDuplicates}`);
-    logger.info(`Errors: ${results.errors.length}`);
+    uLog.info('=== NUKE ACCOUNT COMPLETED ===');
+    uLog.info(`👤 Account: ${username}`);
+    uLog.info(`📼 Videos processed: ${results.processed}`);
+    uLog.info(`📦 Batches: ${results.batches}`);
+    uLog.info(`🗑️ S3 objects deleted: ${results.s3ObjectsDeleted}`);
+    uLog.info(`📌 IPFS hashes unpinned: ${results.ipfsHashesUnpinned}`);
+    uLog.info(`📝 Database records updated: ${results.dbUpdated}`);
+    uLog.info(`💾 Targeted storage: ${processedStorage.gb} GB (${processedStorage.tb} TB)`);
+    uLog.info(`🔄 Duplicate storage references skipped: ${results.skippedDuplicates}`);
+    uLog.info(`⚠️ Errors: ${results.errors.length}`);
 
     if (results.errors.length > 0) {
-      logger.error('Errors encountered during nuke:');
-      results.errors.forEach(err => logger.error(`  - ${err}`));
+      uLog.error('Errors encountered during nuke:');
+      results.errors.forEach(err => uLog.error(`  - ${err}`));
     }
-  } catch (error) {
-    logger.error('Nuke account command failed', error);
+  } catch (error: any) {
+    uLog.error(`Nuke account command failed: ${error.message}`);
     throw error;
   } finally {
     await db.disconnect();

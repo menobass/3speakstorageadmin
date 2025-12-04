@@ -4,6 +4,8 @@ import { Video } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { ProgressBar } from '../utils/progress';
+import { ProgressManager } from '../utils/progress-manager';
+import { UnifiedLogger } from '../utils/unified-logger';
 
 interface PurgeFailedOptions {
   dryRun?: boolean;
@@ -12,42 +14,59 @@ interface PurgeFailedOptions {
   limit?: string;
 }
 
+export async function purgeFailedCommandWithProgress(operationId: string, options: PurgeFailedOptions): Promise<void> {
+  const progressManager = ProgressManager.getInstance();
+  
+  try {
+    await purgeFailedCommandInternal(options, progressManager, operationId);
+    progressManager.completeOperation(operationId);
+  } catch (error: any) {
+    progressManager.errorOperation(operationId, error.message);
+    throw error;
+  }
+}
+
 export async function purgeFailedCommand(options: PurgeFailedOptions): Promise<void> {
+  return purgeFailedCommandInternal(options);
+}
+
+async function purgeFailedCommandInternal(options: PurgeFailedOptions, progressManager?: ProgressManager, operationId?: string): Promise<void> {
   const db = new DatabaseService();
   const ipfsService = new IpfsService();
   const isDryRun = options.dryRun !== false; // Default to true unless --no-dry-run is specified
+  const uLog = new UnifiedLogger(progressManager, operationId);
   
   try {
     await db.connect();
 
     const limit = options.limit ? parseInt(options.limit, 10) : 0;
-    const batchSize = options.batchSize ? parseInt(options.batchSize, 10) : 100;
+    const batchSize = Math.min(options.batchSize ? parseInt(options.batchSize, 10) : 100, 200); // Max 200 for safety
 
-    logger.info(`=== PURGE FAILED VIDEOS ===`);
-    logger.info(`Target: Videos with failed encoding/processing status`);
-    logger.info(`Action: Mark as deleted and unpin from IPFS`);
+    uLog.info(`=== PURGE FAILED VIDEOS ===`);
+    uLog.info(`🎯 Target: Videos with failed encoding/processing status`);
+    uLog.info(`⚡ Action: Mark as deleted and unpin from IPFS`);
     
     if (isDryRun) {
-      logger.info('=== DRY RUN MODE - No changes will be made ===');
+      uLog.info('🔍 === DRY RUN MODE - No changes will be made ===');
     } else {
-      logger.info('⚠️  This will mark videos as deleted and unpin IPFS content!');
+      uLog.info('⚠️  This will mark videos as deleted and unpin IPFS content!');
     }
 
     // Get failed videos (encoding_failed, failed, ipfs_pinning_failed)
-    logger.info('🔍 Finding failed videos in database...');
+    uLog.info('🔍 Finding failed videos in database...');
     const videos = await db.getVideosByCriteria({
       status: ['encoding_failed', 'failed', 'ipfs_pinning_failed']
     }, limit || 10000);
 
     if (videos.length === 0) {
-      logger.info('No failed videos found in database');
+      uLog.info('❌ No failed videos found in database');
       return;
     }
 
-    logger.info(`Found ${videos.length} failed videos in database`);
+    uLog.info(`✅ Found ${videos.length} failed videos in database`);
 
     if (isDryRun) {
-      logger.info('=== DRY RUN ANALYSIS ===');
+      uLog.previewHeader('FAILED VIDEOS PURGE');
       
       // Count by status and storage type
       const statusCounts: Record<string, number> = {};
@@ -64,32 +83,41 @@ export async function purgeFailedCommand(options: PurgeFailedOptions): Promise<v
         totalSize += video.size || 0;
       }
 
-      logger.info(`=== FAILED VIDEOS PURGE PREVIEW ===`);
-      logger.info(`Total failed videos: ${videos.length}`);
-      logger.info(`Total size: ${(totalSize / (1024 ** 3)).toFixed(2)} GB`);
-      logger.info(`Status breakdown:`);
-      Object.entries(statusCounts).forEach(([status, count]) => {
-        logger.info(`  - ${status}: ${count} videos`);
+      // Show sample videos
+      const sampleSize = Math.min(10, videos.length);
+      videos.slice(0, sampleSize).forEach((video, index) => {
+        const storageType = db.getVideoStorageType(video);
+        const additionalInfo = `💾 Storage: ${storageType} | Status: ${video.status}`;
+        uLog.logVideoPreview(video, index, sampleSize, additionalInfo);
       });
-      logger.info(`Storage breakdown:`);
-      logger.info(`  - IPFS: ${storageCounts.ipfs} videos (will be unpinned)`);
-      logger.info(`  - S3: ${storageCounts.s3} videos (already deleted from storage)`);
-      logger.info(`  - Unknown: ${storageCounts.unknown} videos`);
-      logger.info(`💡 All videos will be marked as 'deleted' status`);
-      logger.info(`Use --no-dry-run to execute the failed videos purge`);
+      if (videos.length > 10) {
+        uLog.info(`... and ${videos.length - 10} more videos`);
+      }
+
+      uLog.logPreviewSummary({
+        totalVideos: videos.length,
+        totalSizeGB: totalSize / (1024 ** 3),
+        storageBreakdown: { ipfs: storageCounts.ipfs, s3: storageCounts.s3, unknown: storageCounts.unknown },
+        additionalInfo: [
+          `Status breakdown: ${Object.entries(statusCounts).map(([status, count]) => `${status}: ${count}`).join(', ')}`,
+          `IPFS videos will be unpinned, all marked as deleted`
+        ]
+      });
+      uLog.info(`💡 All videos will be marked as 'deleted' status`);
+      uLog.info(`Use --no-dry-run to execute the failed videos purge`);
       
       return;
     }
 
     // Real purge mode
     if (!isDryRun && config.safety.requireConfirmation && options.confirm !== false) {
-      logger.info('Failed videos purge requires explicit confirmation');
-      logger.info('Use --no-confirm to skip confirmation (dangerous!)');
+      uLog.info('⚠️ Failed videos purge requires explicit confirmation');
+      uLog.info('💡 Use --no-confirm to skip confirmation (dangerous!)');
       return;
     }
 
     // Perform actual failed videos purge
-    logger.info(`Starting failed videos purge in batches of ${batchSize}`);
+    uLog.info(`⚡ Starting failed videos purge in batches of ${batchSize}`);
 
     const results = {
       processed: 0,
@@ -99,12 +127,13 @@ export async function purgeFailedCommand(options: PurgeFailedOptions): Promise<v
       errors: [] as string[]
     };
 
-    const progressBar = new ProgressBar(videos.length, 'Purging failed videos');
+    // Initialize progress tracking
+    uLog.initProgress(videos.length, batchSize);
 
     // Process videos in batches
     for (let i = 0; i < videos.length; i += batchSize) {
       const batch = videos.slice(i, i + batchSize);
-      logger.info(`Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(videos.length / batchSize)}`);
+      uLog.info(`📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(videos.length / batchSize)}`);
 
       for (const video of batch) {
         try {
@@ -115,14 +144,14 @@ export async function purgeFailedCommand(options: PurgeFailedOptions): Promise<v
           if (storageType === 'ipfs') {
             const hash = IpfsService.extractHashFromFilename(video.filename || '');
             if (hash) {
-              logger.info(`Unpinning IPFS video: ${video._id} (${hash})`);
+              uLog.info(`📌 Unpinning IPFS video: ${video._id} (${hash})`);
               const success = await ipfsService.unpinHash(hash);
               if (success) {
                 results.ipfsUnpinned++;
                 results.totalStorageFreed += originalSize;
-                logger.info(`✅ Unpinned IPFS hash: ${hash}`);
+                uLog.info(`✅ Unpinned IPFS hash: ${hash}`);
               } else {
-                logger.warn(`Failed to unpin IPFS hash: ${hash}`);
+                uLog.warn(`⚠️ Failed to unpin IPFS hash: ${hash}`);
               }
             }
           }
@@ -141,13 +170,17 @@ export async function purgeFailedCommand(options: PurgeFailedOptions): Promise<v
           results.markedAsDeleted++;
           results.processed++;
 
-          progressBar.increment(`${video._id} - purged (${storageType})`);
+          const currentBatch = Math.floor((results.processed - 1) / batchSize) + 1;
+          uLog.updateProgress(results.processed, currentBatch);
+          uLog.info(`✅ ${video._id} - purged (${storageType})`);
 
         } catch (error: any) {
-          logger.error(`Error processing video ${video._id}`, error);
-          results.errors.push(`Error processing ${video._id}: ${error.message}`);
+          const errMsg = `Error processing video ${video._id}: ${error.message}`;
+          uLog.error(errMsg);
+          results.errors.push(errMsg);
           results.processed++;
-          progressBar.increment(`${video._id} - error`);
+          const currentBatch = Math.floor((results.processed - 1) / batchSize) + 1;
+          uLog.updateProgress(results.processed, currentBatch);
         }
       }
 
@@ -157,29 +190,27 @@ export async function purgeFailedCommand(options: PurgeFailedOptions): Promise<v
       }
     }
 
-    progressBar.complete('Failed videos purge completed');
-
     const storageFreedGB = (results.totalStorageFreed / (1024 ** 3)).toFixed(2);
 
-    logger.info('=== FAILED VIDEOS PURGE COMPLETED ===');
-    logger.info(`Videos processed: ${results.processed}`);
-    logger.info(`🗑️ Marked as deleted: ${results.markedAsDeleted}`);
-    logger.info(`📌 IPFS hashes unpinned: ${results.ipfsUnpinned}`);
-    logger.info(`💾 IPFS storage freed: ${storageFreedGB} GB`);
-    logger.info(`Errors: ${results.errors.length}`);
+    uLog.info('=== FAILED VIDEOS PURGE COMPLETED ===');
+    uLog.info(`📊 Videos processed: ${results.processed}`);
+    uLog.info(`🗑️ Marked as deleted: ${results.markedAsDeleted}`);
+    uLog.info(`📌 IPFS hashes unpinned: ${results.ipfsUnpinned}`);
+    uLog.info(`💾 IPFS storage freed: ${storageFreedGB} GB`);
+    uLog.info(`⚠️ Errors: ${results.errors.length}`);
 
     if (results.errors.length > 0) {
-      logger.error('Errors encountered during purge:');
-      results.errors.slice(0, 10).forEach(err => logger.error(`  - ${err}`));
+      uLog.error('Errors encountered during purge:');
+      results.errors.slice(0, 10).forEach(err => uLog.error(`  - ${err}`));
       if (results.errors.length > 10) {
-        logger.error(`  ... and ${results.errors.length - 10} more errors`);
+        uLog.error(`  ... and ${results.errors.length - 10} more errors`);
       }
     }
 
-    logger.info('💡 Failed videos cleaned up - no longer cluttering the system');
+    uLog.info('💡 Failed videos cleaned up - no longer cluttering the system');
     
-  } catch (error) {
-    logger.error('Failed videos purge command failed', error);
+  } catch (error: any) {
+    uLog.error(`Failed videos purge command failed: ${error.message}`);
     throw error;
   } finally {
     await db.disconnect();

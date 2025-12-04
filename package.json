@@ -7,9 +7,12 @@
     "3speak-admin": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-views",
+    "copy-views": "mkdir -p dist/web/views && cp -r src/web/views/* dist/web/views/ && mkdir -p dist/web/public",
     "dev": "ts-node src/index.ts",
     "start": "node dist/index.js",
+    "web": "node dist/web-server.js",
+    "dev-web": "ts-node src/web-server.ts",
     "clean": "rimraf dist",
     "prebuild": "npm run clean",
     "watch": "tsc -w",
@@ -30,15 +33,24 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.456.0",
     "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
     "inquirer": "^9.2.12",
     "ipfs-http-client": "^60.0.1",
     "mongodb": "^6.3.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.18.2",
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.10.0",
     "@typescript-eslint/eslint-plugin": "^6.13.0",

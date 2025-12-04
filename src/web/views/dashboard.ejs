@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3Speak Storage Admin Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .stat-label {
+            color: #888;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        .operations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        .operation-card {
+            background: white;
+            padding: 1.75rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .operation-card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+            color: #333;
+        }
+        .operation-card p {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.4rem;
+            color: #555;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 0.625rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 0.5rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .results {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        .results.show {
+            display: block;
+        }
+        .results pre {
+            font-size: 0.85rem;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .danger-zone {
+            border: 2px dashed #e74c3c;
+            padding: 1.5rem;
+            border-radius: 8px;
+            background: #fff5f5;
+        }
+        .danger-zone h3 {
+            color: #e74c3c;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>🎬 3Speak Storage Admin Dashboard</h1>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Stats Section -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Videos</div>
+                <div class="stat-value" id="total-videos">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">IPFS Videos</div>
+                <div class="stat-value" id="ipfs-videos">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Storage</div>
+                <div class="stat-value" id="total-storage">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cleaned Videos</div>
+                <div class="stat-value" id="cleaned-videos">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Progress Monitor Section -->
+        <div style="margin-bottom: 2rem;">
+            <div class="operation-card">
+                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1rem;">
+                    <h2>📊 Operation Progress Monitor</h2>
+                    <div>
+                        <button class="btn btn-sm" style="background: #6c757d; color: white; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="clearLogs()">Clear</button>
+                        <button class="btn btn-sm" style="background: #17a2b8; color: white; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleAutoScroll()" id="auto-scroll-btn">Auto-scroll: ON</button>
+                    </div>
+                </div>
+
+                <!-- Active Operations -->
+                <div id="active-operations" style="margin-bottom: 1rem;">
+                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: #333;">Active Operations:</div>
+                    <div id="operations-list">
+                        <div class="text-muted" id="no-operations" style="font-style: italic;">No active operations</div>
+                    </div>
+                </div>
+
+                <!-- Progress Log -->
+                <div>
+                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: #333;">Progress Log:</div>
+                    <div id="progress-log" style="height: 200px; overflow-y: auto; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 0.75rem; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.4;">
+                        <div class="text-muted">Waiting for operations...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operations Section -->
+        <div class="operations-grid">
+            <!-- Purge Failed Videos -->
+            <div class="operation-card">
+                <h2>🗑️ Purge Failed Videos</h2>
+                <p>Clean up videos that failed encoding/processing and unpin IPFS content.</p>
+                <button class="btn btn-primary" onclick="runOperation('purge-failed', true)">Preview</button>
+                <button class="btn btn-danger" onclick="confirmAndRun('purge-failed')">Execute</button>
+                <div class="results" id="purge-failed-results"></div>
+            </div>
+
+            <!-- Purge Abandoned Videos -->
+            <div class="operation-card">
+                <h2>🗑️ Purge Abandoned Videos</h2>
+                <p>Clean up videos stuck in 'publish_manual' status. <strong>SAFE BATCHING REQUIRED!</strong></p>
+                
+                <div class="form-group">
+                    <label>Older than (days):</label>
+                    <input type="number" id="purge-abandoned-days" value="30" min="7" max="365">
+                </div>
+                
+                <div class="form-group">
+                    <label>Batch Size (MAX 200 for safety!):</label>
+                    <select id="purge-abandoned-batch">
+                        <option value="50">50 videos (Recommended)</option>
+                        <option value="100">100 videos</option>
+                        <option value="200">200 videos (MAX - Use with caution!)</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="runOperation('purge-abandoned', true);">Preview Batch</button>
+                <button class="btn btn-danger" onclick="confirmAndRun('purge-abandoned');">Execute Batch</button>
+                
+                <div id="purge-abandoned-results" class="results"></div>
+            </div>
+
+            <!-- Purge Banned User Videos -->
+            <div class="operation-card danger-zone">
+                <h2>🚫 Purge Banned User Videos</h2>
+                <p><strong>⚠️ CAUTION:</strong> Removes ALL videos from users marked as banned. Unpins IPFS content and marks as cleaned.</p>
+                <p><em>💡 Tip: Run small batches (25-50) to avoid overloading the IPFS supernode.</em></p>
+                
+                <div class="form-group">
+                    <label>Batch Size (videos per run):</label>
+                    <select id="purge-banned-batch">
+                        <option value="25" selected>25 videos (Recommended)</option>
+                        <option value="50">50 videos</option>
+                        <option value="100">100 videos</option>
+                        <option value="200">200 videos (MAX)</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="runOperation('purge-banned', true);">Preview Batch</button>
+                <button class="btn btn-danger" onclick="confirmAndRun('purge-banned');">⚠️ Execute Batch</button>
+                
+                <div id="purge-banned-results" class="results"></div>
+            </div>
+
+            <!-- IPFS Diet -->
+            <!-- IPFS Diet -->
+            <div class="operation-card">
+                <h2>📦 IPFS Diet</h2>
+                <p><strong>⚠️ WARNING:</strong> Unpins IPFS videos making them INACCESSIBLE! Only removes low-engagement content.</p>
+                
+                <div class="form-group">
+                    <label>Videos older than (months):</label>
+                    <select id="ipfs-diet-months">
+                        <option value="3">3 months</option>
+                        <option value="6" selected>6 months (Recommended)</option>
+                        <option value="12">12 months</option>
+                        <option value="24">24 months</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Keep videos with MORE than this many views:</label>
+                    <select id="ipfs-diet-views">
+                        <option value="5">5 views (dead video)</option>
+                        <option value="10" selected>10 views (extremely low engagement)</option>
+                        <option value="20">20 views (very low engagement)</option>
+                        <option value="30">30 views (low engagement)</option>
+                        <option value="40">40 views (below average)</option>
+                        <option value="50">50 views (keeping more content)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Batch Size (MAX 200):</label>
+                    <select id="ipfs-diet-batch">
+                        <option value="25" selected>25 videos (Safe)</option>
+                        <option value="50">50 videos</option>
+                        <option value="100">100 videos</option>
+                        <option value="200">200 videos (MAX)</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="runOperation('ipfs-diet', true);">Preview Batch</button>
+                <button class="btn btn-danger" onclick="confirmAndRun('ipfs-diet');">⚠️ Execute Batch</button>
+                
+                <div id="ipfs-diet-results" class="results"></div>
+            </div>
+
+            <!-- Free Deleted IPFS -->
+            <div class="operation-card">
+                <h2>♻️ Free Deleted IPFS</h2>
+                <p>Clean up IPFS content for videos <strong>already marked as deleted</strong> by admins. Safe operation.</p>
+                
+                <div class="form-group">
+                    <label>Storage Type:</label>
+                    <select id="cleanup-storage">
+                        <option value="">All Storage Types</option>
+                        <option value="ipfs" selected>IPFS Only</option>
+                        <option value="s3">S3 Only</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Batch Size (MAX 200 for safety):</label>
+                    <select id="cleanup-batch">
+                        <option value="25" selected>25 videos (Safe)</option>
+                        <option value="50">50 videos</option>
+                        <option value="100">100 videos</option>
+                        <option value="200">200 videos (MAX)</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="runOperation('cleanup', true);">Preview Batch</button>
+                <button class="btn btn-danger" onclick="confirmAndRun('cleanup');">Execute Batch</button>
+                
+                <div id="cleanup-results" class="results"></div>
+            </div>
+
+            <!-- Ban Account (Nuke) -->
+            <div class="operation-card danger-zone">
+                <h3>☠️ Ban Account (Nuke)</h3>
+                <p><strong>⚠️ EXTREME CAUTION:</strong> Permanently deletes ALL videos and IPFS content for a user account!</p>
+                <div class="form-group">
+                    <label for="nuke-username">Username:</label>
+                    <input type="text" id="nuke-username" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label>Batch Size (MAX 200 videos per batch):</label>
+                    <select id="nuke-batch">
+                        <option value="25" selected>25 videos (Recommended)</option>
+                        <option value="50">50 videos</option>
+                        <option value="100">100 videos</option>
+                        <option value="200">200 videos (MAX)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="runOperation('nuke-account', true)">Preview Batch</button>
+                <button class="btn btn-danger" onclick="confirmAndRun('nuke-account')">⚠️ Execute Batch</button>
+                <div class="results" id="nuke-account-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load stats on page load
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('total-videos').textContent = data.data.totalVideos || '0';
+                    document.getElementById('ipfs-videos').textContent = data.data.ipfsVideos || '0';
+                    document.getElementById('total-storage').textContent = `${data.data.totalSizeGB || '0'} GB`;
+                    document.getElementById('cleaned-videos').textContent = data.data.cleanedVideos || '0';
+                }
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        async function runOperation(operation, dryRun = true, extraParams = {}) {
+            const btn = event.target;
+            const resultsDiv = document.getElementById(`${operation}-results`);
+            
+            btn.disabled = true;
+            btn.innerHTML = dryRun ? '<span class="loading"></span> Previewing...' : '<span class="loading"></span> Executing...';
+            resultsDiv.classList.add('show');
+            resultsDiv.innerHTML = '<pre>Processing...</pre>';
+
+            const params = { dryRun, ...extraParams };
+
+            // Add operation-specific parameters
+            if (operation === 'purge-abandoned') {
+                params.olderThanDays = parseInt(document.getElementById('purge-abandoned-days').value);
+                params.batchSize = parseInt(document.getElementById('purge-abandoned-batch').value);
+            } else if (operation === 'ipfs-diet') {
+                params.olderThanMonths = parseInt(document.getElementById('ipfs-diet-months').value);
+                params.viewThreshold = parseInt(document.getElementById('ipfs-diet-views').value);
+                params.batchSize = parseInt(document.getElementById('ipfs-diet-batch').value);
+            } else if (operation === 'cleanup') {
+                params.status = 'deleted'; // Always target deleted videos
+                params.storageType = document.getElementById('cleanup-storage').value;
+                params.batchSize = parseInt(document.getElementById('cleanup-batch').value);
+            } else if (operation === 'nuke-account') {
+                params.username = document.getElementById('nuke-username').value.trim();
+                params.batchSize = parseInt(document.getElementById('nuke-batch').value);
+                if (!params.username) {
+                    alert('Please enter a username');
+                    btn.disabled = false;
+                    btn.textContent = dryRun ? 'Preview' : 'Execute';
+                    return;
+                }
+            } else if (operation === 'purge-banned') {
+                params.batchSize = parseInt(document.getElementById('purge-banned-batch').value);
+            }
+
+            try {
+                const response = await fetch(`/api/${operation}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const output = data.message || 'Operation completed successfully';
+                    resultsDiv.innerHTML = `<pre>${output}</pre>`;
+                    
+                    // Reload stats after operation
+                    if (!dryRun) {
+                        setTimeout(loadStats, 1000);
+                    }
+                } else {
+                    resultsDiv.innerHTML = `<pre style="color: #e74c3c;">Error: ${data.error}</pre>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<pre style="color: #e74c3c;">Error: ${error.message}</pre>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = dryRun ? 'Preview' : 'Execute';
+            }
+        }
+
+        function confirmAndRun(operation, extraParams = {}) {
+            const messages = {
+                'purge-failed': 'This will permanently delete failed videos and unpin IPFS content. Are you sure?',
+                'purge-abandoned': 'This will permanently delete abandoned videos and unpin IPFS content. Are you sure?',
+                'purge-banned': '⚠️ WARNING: This will permanently delete ALL videos from BANNED users! IPFS will be unpinned and S3 content deleted. Are you sure?',
+                'ipfs-diet': 'This will unpin low-engagement videos from IPFS (making them inaccessible). Are you sure?',
+                'cleanup': 'This will unpin IPFS content for deleted videos. Are you sure?',
+                'nuke-account': '⚠️ WARNING: This will PERMANENTLY DELETE ALL VIDEOS for this account! Are you ABSOLUTELY sure?'
+            };
+
+            if (confirm(messages[operation] || 'Are you sure you want to execute this operation?')) {
+                runOperation(operation, false, extraParams);
+            }
+        }
+
+        // Progress monitoring variables
+        let eventSource = null;
+        let autoScrollEnabled = true;
+        const activeOperations = new Map();
+
+        // Initialize progress monitoring
+        function initProgressMonitoring() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/api/progress-stream');
+
+            eventSource.onopen = function() {
+                addLogMessage('info', 'Connected to progress stream');
+            };
+
+            eventSource.onerror = function(error) {
+                addLogMessage('error', 'Progress stream connection lost. Attempting to reconnect...');
+                // Auto-reconnect after 5 seconds
+                setTimeout(initProgressMonitoring, 5000);
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const message = JSON.parse(event.data);
+                    handleProgressMessage(message);
+                } catch (error) {
+                    console.error('Failed to parse progress message:', error);
+                }
+            };
+        }
+
+        function handleProgressMessage(message) {
+            switch (message.type) {
+                case 'connected':
+                    console.log('Connected to progress stream');
+                    break;
+
+                case 'operation_started':
+                    addOperation(message.data.operationId, message.data.progress);
+                    addLogMessage('info', `🚀 Started: ${message.data.progress.operation}`);
+                    break;
+
+                case 'progress':
+                    updateOperation(message.data.operationId, message.data.progress);
+                    break;
+
+                case 'operation_completed':
+                    completeOperation(message.data.operationId, message.data.progress);
+                    addLogMessage('success', `✅ Completed: ${message.data.progress.operation}`);
+                    break;
+
+                case 'operation_error':
+                    errorOperation(message.data.operationId, message.data.progress);
+                    addLogMessage('error', `❌ Error in ${message.data.progress.operation}: ${message.data.error}`);
+                    break;
+
+                case 'log':
+                    const levelIcon = { info: 'ℹ️', warn: '⚠️', error: '❌' };
+                    addLogMessage(message.data.level, `${levelIcon[message.data.level]} ${message.data.message}`);
+                    break;
+
+                case 'ping':
+                    // Keep connection alive
+                    break;
+
+                default:
+                    console.log('Unknown message type:', message.type);
+            }
+        }
+
+        function addOperation(operationId, progress) {
+            activeOperations.set(operationId, progress);
+            updateOperationsDisplay();
+        }
+
+        function updateOperation(operationId, progress) {
+            activeOperations.set(operationId, progress);
+            updateOperationsDisplay();
+            
+            // Add progress log message
+            const percent = progress.totalItems > 0 ? ((progress.processedItems / progress.totalItems) * 100).toFixed(1) : 0;
+            addLogMessage('info', 
+                `📊 ${progress.operation}: Batch ${progress.currentBatch}/${progress.totalBatches} - ` +
+                `${progress.processedItems}/${progress.totalItems} items (${percent}%)`
+            );
+        }
+
+        function completeOperation(operationId, progress) {
+            activeOperations.delete(operationId);
+            updateOperationsDisplay();
+            
+            // Reload stats after completion
+            setTimeout(loadStats, 1000);
+        }
+
+        function errorOperation(operationId, progress) {
+            // Keep in active operations to show error state
+            activeOperations.set(operationId, progress);
+            updateOperationsDisplay();
+        }
+
+        let updateDisplayRetries = 0;
+        const MAX_DISPLAY_RETRIES = 5;
+
+        function updateOperationsDisplay() {
+            const operationsContainer = document.getElementById('active-operations');
+            
+            // Safety check - container must exist
+            if (!operationsContainer) {
+                if (updateDisplayRetries < MAX_DISPLAY_RETRIES) {
+                    updateDisplayRetries++;
+                    console.warn(`Progress display container not found, retry ${updateDisplayRetries}/${MAX_DISPLAY_RETRIES}`);
+                    setTimeout(updateOperationsDisplay, 100);
+                } else {
+                    console.error('Progress display container not found after max retries');
+                    updateDisplayRetries = 0;
+                }
+                return;
+            }
+            
+            // Reset retry counter on successful access
+            updateDisplayRetries = 0;
+
+            if (activeOperations.size === 0) {
+                // Show "no operations" message
+                operationsContainer.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 0.5rem; color: #333;">Active Operations:</div>
+                    <div id="operations-list">
+                        <div class="text-muted" style="font-style: italic;">No active operations</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Build operations HTML
+            const operationsHtml = Array.from(activeOperations.entries()).map(([operationId, progress]) => {
+                const percent = progress.totalItems > 0 ? ((progress.processedItems / progress.totalItems) * 100) : 0;
+                const statusIcon = {
+                    'running': '🔄',
+                    'paused': '⏸️',
+                    'completed': '✅',
+                    'error': '❌',
+                    'cancelled': '🛑'
+                };
+
+                const statusColor = {
+                    'running': '#17a2b8',
+                    'paused': '#ffc107',
+                    'completed': '#28a745',
+                    'error': '#dc3545',
+                    'cancelled': '#6c757d'
+                };
+
+                return `
+                    <div style="background: #f8f9fa; border-left: 4px solid ${statusColor[progress.status]}; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0 6px 6px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>${statusIcon[progress.status]} ${progress.operation}</strong>
+                                <div style="font-size: 0.85rem; color: #666;">
+                                    Batch ${progress.currentBatch}/${progress.totalBatches} • 
+                                    ${progress.processedItems}/${progress.totalItems} items • 
+                                    ${progress.errors.length} errors
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 600; color: ${statusColor[progress.status]};">${percent.toFixed(1)}%</div>
+                                ${progress.status === 'running' ? `
+                                    <button class="btn btn-sm" style="background: #ffc107; color: #212529; padding: 0.2rem 0.4rem; font-size: 0.7rem; margin: 0 0.1rem;" 
+                                            onclick="controlOperation('${operationId}', 'pause')">Pause</button>
+                                    <button class="btn btn-sm" style="background: #dc3545; color: white; padding: 0.2rem 0.4rem; font-size: 0.7rem;" 
+                                            onclick="controlOperation('${operationId}', 'cancel')">Cancel</button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div style="width: 100%; background: #e9ecef; height: 6px; border-radius: 3px; margin-top: 0.5rem;">
+                            <div style="width: ${percent}%; background: ${statusColor[progress.status]}; height: 100%; border-radius: 3px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Render operations into the container
+            operationsContainer.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 0.5rem; color: #333;">Active Operations:</div>
+                <div id="operations-list">${operationsHtml}</div>
+            `;
+        }
+
+        function addLogMessage(level, message) {
+            const progressLog = document.getElementById('progress-log');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const levelColors = {
+                'info': '#17a2b8',
+                'warn': '#ffc107',
+                'error': '#dc3545',
+                'success': '#28a745'
+            };
+
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `
+                <span style="color: #666; font-size: 0.8em;">[${timestamp}]</span> 
+                <span style="color: ${levelColors[level] || '#333'};">${message}</span>
+            `;
+            logEntry.style.marginBottom = '0.2rem';
+
+            progressLog.appendChild(logEntry);
+
+            // Auto-scroll to bottom if enabled
+            if (autoScrollEnabled) {
+                progressLog.scrollTop = progressLog.scrollHeight;
+            }
+
+            // Limit log entries to prevent memory issues
+            const maxEntries = 500;
+            while (progressLog.children.length > maxEntries) {
+                progressLog.removeChild(progressLog.firstChild);
+            }
+        }
+
+        function clearLogs() {
+            const progressLog = document.getElementById('progress-log');
+            progressLog.innerHTML = '<div class="text-muted">Logs cleared...</div>';
+        }
+
+        function toggleAutoScroll() {
+            autoScrollEnabled = !autoScrollEnabled;
+            const btn = document.getElementById('auto-scroll-btn');
+            btn.textContent = `Auto-scroll: ${autoScrollEnabled ? 'ON' : 'OFF'}`;
+            btn.style.background = autoScrollEnabled ? '#17a2b8' : '#6c757d';
+        }
+
+        function controlOperation(operationId, action) {
+            fetch(`/api/operations/${operationId}/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogMessage('info', `Operation ${action} requested: ${operationId}`);
+                } else {
+                    addLogMessage('error', `Failed to ${action} operation: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                addLogMessage('error', `Error ${action}ing operation: ${error.message}`);
+            });
+        }
+
+        // Load stats on page load
+        loadStats();
+        
+        // Initialize progress monitoring
+        initProgressMonitoring();
+        
+        // Refresh stats every 30 seconds
+        setInterval(loadStats, 30000);
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>

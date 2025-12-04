@@ -81,8 +81,11 @@ export class DatabaseService {
         break;
         
       case 'low-engagement':
+        const cutoffDateLowEng = new Date();
+        cutoffDateLowEng.setDate(cutoffDateLowEng.getDate() - olderThanDays);
         query.$and = [
           { status: 'published' },
+          { created: { $lt: cutoffDateLowEng } }, // Only videos older than the specified age
           { 
             $or: [
               { views: { $lt: viewThreshold } },
@@ -146,6 +149,11 @@ export class DatabaseService {
         }
       }
     );
+  }
+
+  async getVideoById(videoId: string): Promise<Video | null> {
+    const videos = this.getVideosCollection();
+    return await videos.findOne({ _id: videoId });
   }
 
   async batchUpdateVideoStatus(videoIds: string[], status: 'published' | 'deleted' | 'uploaded' | 'encoding_ipfs' | 'processing' | 'failed' | 'draft'): Promise<void> {
@@ -446,6 +454,31 @@ export class DatabaseService {
     };
   }
 
+  async getComprehensiveStats(): Promise<{
+    totalVideos: number;
+    ipfsVideos: number;
+    totalSizeGB: string;
+    cleanedVideos: number;
+  }> {
+    const videos = this.getVideosCollection();
+    
+    const [totalVideos, ipfsVideos, totalSize, cleanupStats] = await Promise.all([
+      videos.countDocuments(),
+      videos.countDocuments({ filename: { $regex: '^ipfs://' } }),
+      videos.aggregate([{ $group: { _id: null, totalSize: { $sum: '$size' } } }]).toArray(),
+      this.getCleanupStats()
+    ]);
+    
+    const totalSizeBytes = totalSize[0]?.totalSize || 0;
+    
+    return {
+      totalVideos: totalVideos,
+      ipfsVideos: ipfsVideos,
+      totalSizeGB: (totalSizeBytes / (1024 ** 3)).toFixed(1),
+      cleanedVideos: cleanupStats.totalCleaned
+    };
+  }
+
   // Legacy method for backward compatibility with list and stats commands
   async getVideosByCriteria(criteria: any, limit: number = 1000): Promise<any[]> {
     const videos = this.getVideosCollection();
@@ -456,6 +489,27 @@ export class DatabaseService {
       const bannedUsers = await this.getBannedUsers();
       const bannedUsernames = bannedUsers.map(user => user.username);
       query.owner = { $in: bannedUsernames };
+    }
+
+    // Handle low-engagement queries (for IPFS diet)
+    if (criteria.type === 'low-engagement') {
+      query.status = 'published'; // Only published videos
+      
+      // CRITICAL: Apply age filter for low-engagement videos
+      if (criteria.olderThanDays && criteria.olderThanDays > 0) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - criteria.olderThanDays);
+        query.created = { $lt: cutoffDate };
+      }
+      
+      // Apply view threshold filter
+      if (criteria.viewThreshold !== undefined) {
+        query.$or = [
+          { views: { $lt: criteria.viewThreshold } },
+          { views: { $exists: false } },
+          { views: null }
+        ];
+      }
     }
 
     // Account-specific queries (for trim-fat command)
@@ -509,6 +563,11 @@ export class DatabaseService {
     // Exclude already deleted videos for purge operations
     if (criteria.excludeDeleted) {
       query.status = { $ne: 'deleted' };
+    }
+    
+    // Exclude already cleaned up videos
+    if (criteria.excludeCleaned) {
+      query.cleanedUp = { $ne: true };
     }
     
     if (criteria.orphaned) {
