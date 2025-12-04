@@ -1,0 +1,14 @@
+[Unit]
+Description=Run Gentle IPFS GC at 2am daily
+Documentation=https://github.com/menobass/3speakstorageadmin
+
+[Timer]
+# Run at 2:00 AM every day
+OnCalendar=*-*-* 02:00:00
+# Add some randomness (0-5 min) to avoid thundering herd
+RandomizedDelaySec=300
+# Don't run if we missed the time (e.g., server was off)
+Persistent=false
+
+[Install]
+WantedBy=timers.target
